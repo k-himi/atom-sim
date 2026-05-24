@@ -1,0 +1,2778 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>原子構造シミュレーター</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Noto+Sans+JP:wght@300;400;500;700&display=swap');
+
+  :root {
+    --bg: #050a14;
+    --surface: #0a1628;
+    --surface2: #0f1f3d;
+    --proton: #ff4d6d;
+    --neutron: #f0f0f0;
+    --electron: #ffd166;
+    --accent: #ffd166;
+    --text: #e8f4fd;
+    --muted: #7a9bb5;
+    --border: #1a3a5c;
+    --glow-p: rgba(255,77,109,0.4);
+    --glow-n: rgba(240,240,240,0.4);
+    --glow-e: rgba(255,209,102,0.5);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Noto Sans JP', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      radial-gradient(1px 1px at 20% 30%, rgba(255,255,255,0.15) 0%, transparent 100%),
+      radial-gradient(1px 1px at 80% 10%, rgba(255,255,255,0.1) 0%, transparent 100%),
+      radial-gradient(1px 1px at 50% 70%, rgba(255,255,255,0.12) 0%, transparent 100%),
+      radial-gradient(1px 1px at 10% 80%, rgba(255,255,255,0.08) 0%, transparent 100%),
+      radial-gradient(2px 2px at 35% 15%, rgba(126,184,247,0.2) 0%, transparent 100%),
+      radial-gradient(2px 2px at 65% 85%, rgba(255,77,109,0.15) 0%, transparent 100%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  header {
+    text-align: center;
+    padding: 28px 20px 12px;
+    position: relative;
+    z-index: 1;
+  }
+
+  header h1 {
+    font-family: 'Orbitron', monospace;
+    font-size: clamp(16px, 3.5vw, 28px);
+    font-weight: 900;
+    letter-spacing: 0.1em;
+    background: linear-gradient(135deg, var(--proton), var(--accent), var(--electron));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 4px;
+  }
+
+  header p { color: var(--muted); font-size: 12px; font-weight: 300; }
+
+  .tabs {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    padding: 0 20px 16px;
+    position: relative;
+    z-index: 1;
+  }
+
+  .tab-btn {
+    padding: 8px 24px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--muted);
+    font-size: 13px;
+    font-family: 'Noto Sans JP', sans-serif;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .tab-btn.active { background: var(--surface2); border-color: var(--accent); color: var(--accent); }
+  .tab-btn:hover:not(.active) { border-color: var(--muted); color: var(--text); }
+
+  .tab-content { display: none; }
+  .tab-content.active {
+    display: block;
+    animation: tabSlideIn 0.25s ease;
+  }
+
+  @keyframes tabSlideIn {
+    from { opacity: 0; transform: translateX(30px); }
+    to   { opacity: 1; transform: translateX(0); }
+  }
+
+  .main-layout {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 0 20px 40px;
+    position: relative;
+    z-index: 1;
+  }
+
+  .nucleus-container { position: relative; width: 160px; height: 160px; margin-bottom: 12px; overflow: visible; }
+
+  .orbit {
+    position: absolute; border-radius: 50%;
+    border: 1px solid rgba(168,255,120,0.15);
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    animation: orbit-pulse 3s ease-in-out infinite;
+    transition: opacity 0.4s ease;
+  }
+
+  @keyframes orbit-pulse {
+    0%, 100% { border-color: rgba(168,255,120,0.15); }
+    50%       { border-color: rgba(168,255,120,0.3); }
+  }
+
+  /* 殻サイズ定義 K〜P */
+  .orbit-1 { width:  46px; height:  46px; }                        /* K殻 */
+  .orbit-2 { width:  80px; height:  80px; animation-delay: 0.5s; } /* L殻 */
+  .orbit-3 { width: 116px; height: 116px; animation-delay: 1s; }   /* M殻 */
+  .orbit-4 { width: 150px; height: 150px; animation-delay: 1.5s; } /* N殻 */
+  .orbit-5 { width: 186px; height: 186px; animation-delay: 2s; }   /* O殻 */
+  .orbit-6 { width: 222px; height: 222px; animation-delay: 2.5s; } /* P殻 */
+
+  /* 殻名ラベル */
+  .orbit-label {
+    position: absolute;
+    font-family: 'Orbitron', monospace;
+    font-size: 8px;
+    color: rgba(168,255,120,0.4);
+    pointer-events: none;
+    top: 50%;
+    transform: translateY(-50%);
+    line-height: 1;
+  }
+
+  .electron-dot {
+    position: absolute; width: 6px; height: 6px;
+    background: var(--electron); border-radius: 50%;
+    box-shadow: 0 0 5px var(--glow-e), 0 0 10px var(--glow-e);
+    transform: translate(-50%, -50%);
+    transition: box-shadow 0.3s;
+  }
+
+  /* 希ガス電子配置エフェクト */
+  .electron-dot.noble {
+    background: var(--electron);
+    box-shadow: 0 0 8px var(--electron), 0 0 16px var(--glow-e), 0 0 28px var(--glow-e);
+    animation: noble-pulse 1.2s ease-in-out infinite;
+  }
+
+  @keyframes noble-pulse {
+    0%, 100% { opacity: 1; box-shadow: 0 0 8px var(--electron), 0 0 16px var(--glow-e), 0 0 28px var(--glow-e); }
+    50%       { opacity: 0.4; box-shadow: 0 0 4px var(--electron), 0 0 8px var(--glow-e); }
+  }
+
+  .noble-gas-badge {
+    position: absolute;
+    top: 4px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: linear-gradient(135deg, #a8f0ff, #7eb8f7);
+    color: #050a14;
+    font-family: 'Orbitron', monospace;
+    font-size: 8px;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 8px;
+    white-space: nowrap;
+    z-index: 20;
+    animation: badge-pop 0.4s cubic-bezier(0.34,1.56,0.64,1) forwards;
+    pointer-events: none;
+  }
+
+  @keyframes badge-pop {
+    from { opacity: 0; transform: translateX(-50%) scale(0.6); }
+    to   { opacity: 1; transform: translateX(-50%) scale(1); }
+  }
+
+  #nucleus {
+    position: absolute; top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 80px; height: 80px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.4s ease;
+  }
+
+  #nucleus canvas { position: absolute; inset: 0; border-radius: 50%; }
+  #nucleus-label { position: relative; z-index: 2; text-align: center; pointer-events: none; }
+  #nucleus-label .mass-num { font-family: 'Orbitron', monospace; font-size: 18px; font-weight: 700; color: white; text-shadow: 0 0 10px rgba(255,255,255,0.8); line-height: 1; }
+  #nucleus-label .pn-ratio { font-size: 9px; color: rgba(255,255,255,0.6); margin-top: 2px; }
+
+  /* ===== ボーアモデル＋オーバーレイラッパー ===== */
+  .bohr-wrap {
+    position: relative;
+    width: 340px;
+    flex-shrink: 0;
+  }
+
+  /* ボーアモデル本体（核種カード重ね時は半透明） */
+  .bohr-wrap.has-nuclide .nucleus-container {
+    opacity: 0.5;
+    transition: opacity 0.4s ease;
+  }
+
+  .bohr-wrap.has-nuclide .nucleus-container:hover {
+    opacity: 0.9;
+  }
+
+  /* 核種情報オーバーレイ（右上に絶対配置・小さめ） */
+  #element-card {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 120px;
+    background: rgba(8, 18, 34, 0.88);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 8px 10px 8px;
+    text-align: center;
+    z-index: 10;
+    transition: all 0.4s ease;
+    pointer-events: auto;
+  }
+
+  #element-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: var(--card-gradient, transparent);
+    opacity: 0.1;
+    border-radius: 10px;
+    pointer-events: none;
+  }
+
+  .empty-state-sm {
+    color: var(--muted);
+    font-size: 18px;
+    padding: 8px 0;
+    line-height: 1.4;
+  }
+
+  .element-name-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    margin: 2px 0 1px;
+  }
+
+  .wiki-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: rgba(126,184,247,0.15);
+    border: 1px solid rgba(126,184,247,0.4);
+    color: var(--neutron);
+    font-size: 11px;
+    font-weight: 900;
+    font-family: sans-serif;
+    text-decoration: none;
+    transition: all 0.2s;
+    flex-shrink: 0;
+    position: relative;
+    z-index: 2;
+  }
+
+  .wiki-link:hover {
+    background: rgba(126,184,247,0.35);
+    border-color: var(--neutron);
+    box-shadow: 0 0 6px rgba(126,184,247,0.5);
+    transform: scale(1.15);
+  }
+
+  .element-symbol-link, .element-name-link { text-decoration: none; display: block; position: relative; z-index: 2; }
+  .element-symbol-link:hover .element-symbol { filter: brightness(1.3); }
+  .element-name-link:hover .element-name { text-decoration: underline; opacity: 0.85; }
+
+  .element-symbol { font-family: 'Orbitron', monospace; font-size: 28px; font-weight: 900; line-height: 1; background: var(--symbol-gradient, linear-gradient(135deg, #7eb8f7, #a8ff78)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+  .element-name   { font-size: 11px; font-weight: 700; margin: 2px 0 1px; }
+  .nuclide-name   { font-family: 'Orbitron', monospace; font-size: 8px; color: var(--accent); letter-spacing: 0.03em; margin-bottom: 5px; }
+
+  .element-tags   { display: flex; flex-wrap: wrap; gap: 3px; justify-content: center; margin-bottom: 5px; }
+
+  .tag { padding: 1px 5px; border-radius: 20px; font-size: 8px; font-weight: 500; border: 1px solid; }
+  .tag-stable   { background: rgba(168,255,120,0.1); border-color: rgba(168,255,120,0.4); color: var(--electron); }
+  .tag-unstable { background: rgba(255,77,109,0.1);  border-color: rgba(255,77,109,0.4);  color: var(--proton); }
+  .tag-unknown  { background: rgba(122,155,181,0.1); border-color: rgba(122,155,181,0.4); color: var(--muted); }
+  .tag-ion      { background: rgba(255,209,102,0.1); border-color: rgba(255,209,102,0.4); color: var(--accent); }
+  .tag-category { background: rgba(126,184,247,0.1); border-color: rgba(126,184,247,0.4); color: var(--neutron); }
+
+  .collect-btn {
+    margin-top: 5px;
+    margin-bottom: 0;
+    width: 100%;
+    padding: 5px 4px;
+    border-radius: 7px;
+    border: 1px solid var(--accent);
+    background: rgba(255,209,102,0.08);
+    color: var(--accent);
+    font-size: 9px;
+    font-family: 'Noto Sans JP', sans-serif;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-weight: 500;
+    pointer-events: all;
+    position: relative;
+    z-index: 2;
+  }
+
+  .collect-btn:hover { background: rgba(255,209,102,0.18); }
+  .collect-btn.already { border-color: var(--electron); color: var(--electron); background: rgba(168,255,120,0.08); cursor: default; }
+
+  .ion-name-badge {
+    font-family: 'Noto Sans JP', sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--accent);
+    background: rgba(255,209,102,0.1);
+    border: 1px solid rgba(255,209,102,0.35);
+    border-radius: 8px;
+    padding: 3px 8px;
+    margin: 4px 0 2px;
+    text-align: center;
+    animation: fadeIn 0.3s ease;
+  }
+
+  .stability-row { display: flex; align-items: center; gap: 6px; margin-top: 8px; }
+  .stability-bar { flex: 1; height: 3px; border-radius: 2px; overflow: hidden; background: var(--border); }
+  .stability-fill { height: 100%; border-radius: 2px; transition: width 0.4s ease, background 0.4s ease; }
+  .stability-label { font-size: 8px; color: var(--muted); letter-spacing: 0.05em; flex-shrink: 0; }
+
+  /* マーキーバー（ボーアモデル下・コントロール上） */
+  .marquee-bar {
+    width: 340px;
+    overflow: hidden;
+    padding: 6px 0;
+    border-top: 1px solid rgba(255,255,255,0.06);
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+  }
+
+  /* 解説マーキー */
+  .desc-marquee-wrap {
+    overflow: hidden;
+    width: 100%;
+  }
+
+  .desc-marquee-track {
+    display: inline-flex;
+    white-space: nowrap;
+    will-change: transform;
+  }
+
+  .element-desc {
+    font-size: 11px;
+    color: var(--muted);
+    line-height: 1.6;
+    white-space: nowrap;
+    padding-right: 60px;
+  }
+
+  /* ===== 玉＋上下ボタン コントロール ===== */
+  .controls {
+    display: flex;
+    flex-direction: row;
+    gap: 8px;
+    width: auto;
+    justify-content: center;
+    align-items: stretch;
+  }
+
+  /* 各粒子ユニット（＋ / 玉+数字 / −を縦に並べる） */
+  .particle-unit {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    width: 72px;
+    flex-shrink: 0;
+  }
+
+  .count-btn {
+    width: 100%;
+    height: 36px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    color: var(--text);
+    font-size: 20px; font-weight: 700;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.15s;
+    user-select: none;
+  }
+
+  .count-btn:hover { border-color: var(--accent); color: var(--accent); transform: scale(1.03); }
+  .count-btn:active { transform: scale(0.95); }
+
+  /* 玉＋数字エリア */
+  .particle-center {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 0;
+  }
+
+  .particle-ball {
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .ball-proton {
+    background: radial-gradient(circle at 38% 35%, #ff8fa3, #c9184a);
+    box-shadow: 0 0 10px var(--glow-p), 0 0 20px var(--glow-p);
+  }
+
+  .ball-neutron {
+    background: radial-gradient(circle at 38% 35%, #ffffff, #c0c0c0);
+    box-shadow: 0 0 10px var(--glow-n), 0 0 18px var(--glow-n);
+  }
+
+  .ball-electron {
+    background: radial-gradient(circle at 38% 35%, #ffe680, #e6a800);
+    box-shadow: 0 0 10px var(--glow-e), 0 0 18px var(--glow-e);
+  }
+
+  .count-display {
+    font-family: 'Orbitron', monospace;
+    font-size: 22px; font-weight: 900;
+    line-height: 1;
+    text-align: center;
+  }
+
+  .count-p { color: var(--proton); }
+  .count-n { color: var(--neutron); text-shadow: 0 0 8px rgba(200,200,200,0.5); }
+  .count-e { color: var(--electron); }
+  .count-label { font-size: 9px; color: var(--muted); margin-top: 0; }
+
+  .summary-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 10px 8px;
+    flex: 1.4;
+    min-width: 0;
+    max-width: 140px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+  }
+
+  /* 核種記法レイアウト */
+  .nuclide-notation {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+  }
+
+  .notation-scripts {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    line-height: 1;
+    margin-right: 1px;
+  }
+
+  .notation-mass {
+    font-family: 'Orbitron', monospace;
+    font-size: 14px;
+    font-weight: 700;
+    color: #4fc3f7;
+    line-height: 1.1;
+  }
+
+  .notation-atomic {
+    font-family: 'Orbitron', monospace;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--proton);
+    line-height: 1.1;
+  }
+
+  .notation-symbol-wrap {
+    position: relative;
+    display: inline-flex;
+    align-items: flex-end;
+    padding-right: 26px;
+  }
+
+  .notation-symbol {
+    font-family: 'Orbitron', monospace;
+    font-size: 28px;
+    font-weight: 900;
+    color: var(--text);
+    line-height: 1;
+  }
+
+  .notation-charge {
+    position: absolute;
+    top: -2px;
+    right: 0;
+    font-family: 'Orbitron', monospace;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--accent);
+    line-height: 1;
+    min-width: 14px;
+    text-align: left;
+  }
+
+  /* ===== 電荷バランス棒グラフ ===== */
+  .charge-chart {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 12px 16px 10px;
+    width: 100%;
+    max-width: 380px;
+  }
+
+  .charge-chart-title {
+    font-family: 'Orbitron', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    letter-spacing: 0.08em;
+    margin-bottom: 10px;
+  }
+
+  .charge-bars {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .charge-bar-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .charge-bar-label {
+    font-family: 'Orbitron', monospace;
+    font-size: 10px;
+    font-weight: 700;
+    width: 52px;
+    flex-shrink: 0;
+    text-align: right;
+  }
+
+  .proton-label   { color: var(--proton); }
+  .electron-label { color: var(--electron); }
+
+  .charge-bar-track {
+    flex: 1;
+    height: 14px;
+    background: var(--surface2);
+    border-radius: 7px;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .charge-bar-fill {
+    height: 100%;
+    border-radius: 7px;
+    transition: width 0.35s ease;
+    width: 0%;
+    min-width: 0;
+  }
+
+  .proton-fill {
+    background: linear-gradient(90deg, #c9184a, #ff4d6d);
+    box-shadow: 0 0 6px rgba(255,77,109,0.5);
+  }
+
+  .electron-fill {
+    background: linear-gradient(90deg, #e6a800, #ffd166);
+    box-shadow: 0 0 6px rgba(255,209,102,0.5);
+  }
+
+  /* 差分表示行 */
+  .charge-diff-row {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    margin-top: 6px;
+    padding-left: 60px;
+    min-height: 36px;
+    position: relative;
+  }
+
+  /* ラインと価数をまとめるラッパー */
+  .charge-diff-wrap {
+    position: relative;
+    flex: 1;
+    height: 36px;
+  }
+
+  .charge-diff-line {
+    position: absolute;
+    bottom: 6px;
+    left: 0;
+    height: 3px;
+    background: transparent;
+    border-radius: 2px;
+    transition: width 0.35s ease, margin-left 0.35s ease, background 0.35s ease;
+  }
+
+  /* 差分ブラケット（両端の縦線） */
+  .charge-diff-line::before,
+  .charge-diff-line::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    width: 2px;
+    height: 8px;
+    border-radius: 1px;
+    background: inherit;
+    filter: brightness(1.4);
+  }
+  .charge-diff-line::before { left: 0; }
+  .charge-diff-line::after  { right: 0; }
+
+  .charge-diff-label {
+    position: absolute;
+    bottom: 10px;
+    left: 0;
+    width: 100%;
+    text-align: center;
+    font-family: 'Orbitron', monospace;
+    font-size: 20px;
+    font-weight: 900;
+    line-height: 1;
+    transition: color 0.3s, opacity 0.3s;
+    pointer-events: none;
+  }
+
+  .charge-neutral-label {
+    font-family: 'Orbitron', monospace;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--electron);
+    flex: 1;
+    text-align: center;
+  }
+
+  /* ===== 周期表 ===== */
+  .ptable-scroll {
+    width: 100%;
+    overflow-x: auto;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: var(--surface);
+    padding: 12px;
+  }
+
+  .ptable-wrap {
+    display: grid;
+    grid-template-columns: repeat(18, 38px);
+    grid-template-rows: repeat(10, 46px);
+    gap: 3px;
+    min-width: 720px;
+  }
+
+  .pt-cell {
+    border-radius: 6px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s;
+    border: 1px solid rgba(255,255,255,0.08);
+    position: relative;
+    padding: 2px;
+  }
+
+  .pt-cell:hover {
+    transform: scale(1.15);
+    z-index: 10;
+  }
+
+  .pt-cell .pt-z {
+    font-family: 'Orbitron', monospace;
+    font-size: 7px;
+    color: rgba(255,255,255,0.5);
+    line-height: 1;
+    align-self: flex-start;
+    padding-left: 2px;
+  }
+
+  .pt-cell .pt-sym {
+    font-family: 'Orbitron', monospace;
+    font-size: 13px;
+    font-weight: 900;
+    color: #fff;
+    line-height: 1;
+  }
+
+  .pt-cell .pt-name {
+    font-size: 6px;
+    color: rgba(255,255,255,0.6);
+    line-height: 1;
+    margin-top: 1px;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    max-width: 36px;
+    text-overflow: ellipsis;
+  }
+
+  .pt-gap { /* 空白セル */ }
+
+  .ptable-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: center;
+  }
+
+  .ptable-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 10px;
+    color: var(--muted);
+  }
+
+  .ptable-legend-dot {
+    width: 12px; height: 12px;
+    border-radius: 3px;
+  }
+
+  .reset-btn {
+    padding: 10px 32px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--muted);
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: 'Noto Sans JP', sans-serif;
+  }
+
+  .reset-btn:hover { border-color: var(--proton); color: var(--proton); }
+
+  .legend { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+  .legend-item { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--muted); }
+  .legend-dot  { width: 9px; height: 9px; border-radius: 50%; }
+
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+  .fade-in { animation: fadeIn 0.3s ease forwards; }
+
+  /* ===== 核種マップタブ ===== */
+  .chart-layout {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 0 20px 40px;
+    position: relative;
+    z-index: 1;
+  }
+
+  .chart-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .chart-title { font-family: 'Orbitron', monospace; font-size: 14px; font-weight: 700; color: var(--accent); }
+
+  .chart-stats { display: flex; gap: 16px; flex-wrap: wrap; }
+  .chart-stat  { font-size: 12px; color: var(--muted); }
+  .chart-stat span { font-family: 'Orbitron', monospace; font-weight: 700; }
+  .s-stable   { color: var(--electron) !important; }
+  .s-unstable { color: var(--proton) !important; }
+  .s-unknown  { color: var(--accent) !important; }
+  .s-total    { color: var(--text) !important; }
+
+  .chart-clear-btn {
+    padding: 6px 16px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--muted);
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: 'Noto Sans JP', sans-serif;
+  }
+
+  .chart-clear-btn:hover { border-color: var(--proton); color: var(--proton); }
+
+  .chart-scroll {
+    width: 100%;
+    overflow: auto;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: var(--surface);
+    padding: 16px;
+  }
+
+  #nuclideChart { display: block; cursor: pointer; }
+
+  .collection-list {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 8px;
+  }
+
+  .coll-item {
+    background: var(--surface2);
+    border-radius: 10px;
+    padding: 10px;
+    text-align: center;
+    border: 1px solid var(--border);
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+  }
+
+  .coll-item:hover { border-color: var(--accent); transform: translateY(-2px); }
+
+  .coll-sym {
+    font-family: 'Orbitron', monospace;
+    font-size: 20px;
+    font-weight: 900;
+    background: var(--coll-grad, linear-gradient(135deg, #7eb8f7, #a8ff78));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .coll-label { font-size: 10px; color: var(--muted); margin-top: 2px; }
+  .coll-stab  { width: 6px; height: 6px; border-radius: 50%; margin: 4px auto 0; }
+
+  .coll-del {
+    position: absolute;
+    top: 4px; right: 6px;
+    font-size: 12px; color: var(--muted);
+    cursor: pointer; opacity: 0;
+    transition: opacity 0.15s;
+    background: none; border: none;
+    line-height: 1; padding: 2px;
+  }
+
+  .coll-item:hover .coll-del { opacity: 1; }
+
+  .empty-chart { text-align: center; color: var(--muted); padding: 60px 20px; font-size: 14px; }
+  .empty-chart .big { font-size: 40px; margin-bottom: 12px; }
+
+  /* 自動コレクション カウントダウンバー＋トースト */
+  #autoCollectBarWrap {
+    position: absolute;
+    bottom: -22px;
+    right: 0;
+    width: 120px;
+    z-index: 11;
+  }
+
+  #autoCollectBar {
+    display: none;
+    height: 3px;
+    width: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--proton));
+    border-radius: 2px;
+  }
+
+  #autoCollectBarBg {
+    display: none;
+    height: 3px;
+    width: 100%;
+    background: rgba(255,255,255,0.08);
+    border-radius: 2px;
+    position: absolute;
+    top: 0; left: 0;
+  }
+
+  #toast {
+    position: absolute;
+    top: -26px;
+    right: 0;
+    width: max-content;
+    background: rgba(8,18,34,0.92);
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 500;
+    opacity: 0;
+    transform: translateY(4px);
+    transition: opacity 0.25s ease, transform 0.25s ease;
+    pointer-events: none;
+    white-space: nowrap;
+    text-align: center;
+  }
+
+  #toast.show { opacity: 1; transform: translateY(0); }
+
+  .cell-tooltip.show { opacity: 1; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>⚛ ATOM SIMULATOR</h1>
+  <p>陽子・中性子・電子を加えて核種を探索しよう</p>
+</header>
+
+<div class="tabs">
+  <button class="tab-btn active" id="tabSimBtn" onclick="switchTab('simulator')">⚛ シミュレーター</button>
+  <button class="tab-btn" id="tabChartBtn" onclick="switchTab('chart')">📊 核種マップ <span id="collBadge" style="display:none;background:var(--accent);color:#000;border-radius:10px;padding:1px 6px;font-size:10px;font-weight:700;margin-left:4px;">0</span></button>
+  <button class="tab-btn" id="tabPtableBtn" onclick="switchTab('ptable')">🔬 周期表</button>
+</div>
+
+<!-- シミュレーター -->
+<div id="tab-simulator" class="tab-content active">
+<div class="main-layout">
+
+  <!-- ボーアモデルエリア（核種カードを右上に重ねる） -->
+  <div class="bohr-wrap">
+
+    <!-- ボーアモデル本体 -->
+    <div class="nucleus-container" id="nucleusContainer">
+      <div class="orbit orbit-1" id="orbit1"><span class="orbit-label" style="left:calc(50% + 24px)">K</span></div>
+      <div class="orbit orbit-2" id="orbit2"><span class="orbit-label" style="left:calc(50% + 41px)">L</span></div>
+      <div class="orbit orbit-3" id="orbit3"><span class="orbit-label" style="left:calc(50% + 59px)">M</span></div>
+      <div class="orbit orbit-4" id="orbit4"><span class="orbit-label" style="left:calc(50% + 76px)">N</span></div>
+      <div id="nucleus">
+        <canvas id="nucleusCanvas" width="80" height="80"></canvas>
+        <div id="nucleus-label">
+          <div class="mass-num" id="massNum">0</div>
+          <div class="pn-ratio" id="pnRatio">p:n = 0:0</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 核種情報オーバーレイ（右上） -->
+    <div id="element-card">
+      <div class="empty-state-sm">⚛<br><span style="font-size:10px">陽子を追加</span></div>
+    </div>
+    <!-- 自動コレクション カウントダウンバー＋トースト -->
+    <div id="autoCollectBarWrap">
+      <div id="autoCollectBarBg"></div>
+      <div id="autoCollectBar"></div>
+      <div id="toast"></div>
+    </div>
+
+  </div>
+
+  <!-- マーキー解説（ボーアモデルとコントロールの間） -->
+  <div class="marquee-bar" id="marqueeBar" style="display:none">
+    <div class="desc-marquee-wrap" style="margin-top:0;border-top:none;padding-top:0">
+      <div class="desc-marquee-track" id="marqueeTrack">
+        <span class="element-desc" id="marqueeText1"></span>
+        <span class="element-desc" id="marqueeText2"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- コントロール -->
+  <div class="controls">
+    <!-- 陽子：赤玉 -->
+    <div class="particle-unit">
+      <button class="count-btn" onclick="change('p',1)">＋</button>
+      <div class="particle-center">
+        <div class="particle-ball ball-proton"></div>
+        <div class="count-display count-p" id="pCount">0</div>
+        <div class="count-label">Z 陽子</div>
+      </div>
+      <button class="count-btn" onclick="change('p',-1)">−</button>
+    </div>
+
+    <!-- 中性子：白玉 -->
+    <div class="particle-unit">
+      <button class="count-btn" onclick="change('n',1)">＋</button>
+      <div class="particle-center">
+        <div class="particle-ball ball-neutron"></div>
+        <div class="count-display count-n" id="nCount">0</div>
+        <div class="count-label">N 中性子</div>
+      </div>
+      <button class="count-btn" onclick="change('n',-1)">−</button>
+    </div>
+
+    <!-- 電子：黄玉 -->
+    <div class="particle-unit">
+      <button class="count-btn" onclick="change('e',1)">＋</button>
+      <div class="particle-center">
+        <div class="particle-ball ball-electron"></div>
+        <div class="count-display count-e" id="eCount">0</div>
+        <div class="count-label">電子</div>
+      </div>
+      <button class="count-btn" onclick="change('e',-1)">−</button>
+    </div>
+
+    <!-- サマリー：核種記法 -->
+    <div class="summary-card">
+      <div class="nuclide-notation">
+        <div class="notation-scripts">
+          <span class="notation-mass" id="sumA">0</span>
+          <span class="notation-atomic" id="sumZ">0</span>
+        </div>
+        <div class="notation-symbol-wrap">
+          <span class="notation-charge" id="sumCharge"></span>
+          <div class="notation-symbol" id="sumSym">?</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 電荷バランス棒グラフ -->
+  <div class="charge-chart" id="chargeChart">
+    <div class="charge-chart-title">電荷バランス</div>
+    <div class="charge-bars">
+      <!-- 陽子バー -->
+      <div class="charge-bar-row">
+        <div class="charge-bar-label proton-label">陽子 <span id="cgP">0</span></div>
+        <div class="charge-bar-track">
+          <div class="charge-bar-fill proton-fill" id="cgBarP"></div>
+        </div>
+      </div>
+      <!-- 電子バー -->
+      <div class="charge-bar-row">
+        <div class="charge-bar-label electron-label">電子 <span id="cgE">0</span></div>
+        <div class="charge-bar-track">
+          <div class="charge-bar-fill electron-fill" id="cgBarE"></div>
+        </div>
+      </div>
+      <!-- 差分ライン -->
+      <div class="charge-diff-row">
+        <div class="charge-diff-wrap">
+          <div class="charge-diff-line" id="cgDiffLine"></div>
+          <div class="charge-diff-label" id="cgDiffLabel"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <button class="reset-btn" onclick="resetAll()">↺ リセット</button>
+</div>
+</div>
+
+<!-- 核種マップ -->
+<div id="tab-chart" class="tab-content">
+<div class="chart-layout">
+
+  <div class="chart-header">
+    <div class="chart-title">🗺 CHART OF NUCLIDES</div>
+    <div class="chart-stats">
+      <div class="chart-stat">合計 <span class="s-total" id="statTotal">0</span></div>
+      <div class="chart-stat">安定 <span class="s-stable" id="statStable">0</span></div>
+      <div class="chart-stat">放射性 <span class="s-unstable" id="statUnstable">0</span></div>
+      <div class="chart-stat">不明 <span class="s-unknown" id="statUnknown">0</span></div>
+    </div>
+    <button class="chart-clear-btn" onclick="clearCollection()">🗑 クリア</button>
+  </div>
+
+  <div class="chart-scroll" id="chartScroll">
+    <canvas id="nuclideChart"></canvas>
+  </div>
+
+  <div class="legend">
+    <div class="legend-item"><div class="legend-dot" style="background:#a8ff78"></div>安定核種</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#ff4d6d"></div>放射性核種</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#ffd166"></div>安定性不明</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#0f1f3d;border:1px solid #2a5c8c"></div>未コレクション</div>
+  </div>
+
+  <div style="width:100%">
+    <div style="font-family:'Orbitron',monospace;font-size:11px;color:var(--muted);letter-spacing:0.1em;margin-bottom:10px;">▸ COLLECTED NUCLIDES</div>
+    <div class="collection-list" id="collectionList">
+      <div class="empty-chart"><div class="big">🔬</div>まだ核種をコレクションしていません<br><small style="font-size:11px;margin-top:8px;display:block">シミュレーターで核種を作り<br>「コレクションに追加」を押してください</small></div>
+    </div>
+  </div>
+
+</div>
+</div>
+
+<!-- 周期表タブ -->
+<div id="tab-ptable" class="tab-content">
+<div class="chart-layout">
+  <div class="chart-header">
+    <div class="chart-title">🔬 PERIODIC TABLE</div>
+    <div style="font-size:11px;color:var(--muted)">元素をタップ → シミュレーターへ</div>
+  </div>
+  <div class="ptable-scroll">
+    <div class="ptable-wrap" id="ptableWrap"></div>
+  </div>
+  <!-- カテゴリ凡例 -->
+  <div class="ptable-legend" id="ptableLegend"></div>
+</div>
+</div>
+
+<div class="cell-tooltip" id="cellTooltip"></div>
+
+<script>
+// ===== イオン名データ =====
+// キー: "Z,charge"（例: "11,1" → ナトリウムイオン）
+const ION_NAMES = {
+  // 1族・2族 陽イオン
+  '1,1':   'H⁺（水素イオン・プロトン）',
+  '3,1':   'Li⁺（リチウムイオン）',
+  '11,1':  'Na⁺（ナトリウムイオン）',
+  '19,1':  'K⁺（カリウムイオン）',
+  '37,1':  'Rb⁺（ルビジウムイオン）',
+  '55,1':  'Cs⁺（セシウムイオン）',
+  '4,2':   'Be²⁺（ベリリウムイオン）',
+  '12,2':  'Mg²⁺（マグネシウムイオン）',
+  '20,2':  'Ca²⁺（カルシウムイオン）',
+  '38,2':  'Sr²⁺（ストロンチウムイオン）',
+  '56,2':  'Ba²⁺（バリウムイオン）',
+  // 遷移金属 陽イオン
+  '24,2':  'Cr²⁺（クロム(II)イオン）',
+  '24,3':  'Cr³⁺（クロム(III)イオン）',
+  '25,2':  'Mn²⁺（マンガン(II)イオン）',
+  '26,2':  'Fe²⁺（鉄(II)イオン）',
+  '26,3':  'Fe³⁺（鉄(III)イオン）',
+  '27,2':  'Co²⁺（コバルト(II)イオン）',
+  '27,3':  'Co³⁺（コバルト(III)イオン）',
+  '28,2':  'Ni²⁺（ニッケル(II)イオン）',
+  '29,1':  'Cu⁺（銅(I)イオン）',
+  '29,2':  'Cu²⁺（銅(II)イオン）',
+  '30,2':  'Zn²⁺（亜鉛イオン）',
+  '47,1':  'Ag⁺（銀イオン）',
+  '48,2':  'Cd²⁺（カドミウムイオン）',
+  '78,2':  'Pt²⁺（白金(II)イオン）',
+  '78,4':  'Pt⁴⁺（白金(IV)イオン）',
+  '79,1':  'Au⁺（金(I)イオン）',
+  '79,3':  'Au³⁺（金(III)イオン）',
+  '80,2':  'Hg²⁺（水銀(II)イオン）',
+  '82,2':  'Pb²⁺（鉛(II)イオン）',
+  '82,4':  'Pb⁴⁺（鉛(IV)イオン）',
+  // p族 陽イオン
+  '13,3':  'Al³⁺（アルミニウムイオン）',
+  '31,3':  'Ga³⁺（ガリウム(III)イオン）',
+  '49,3':  'In³⁺（インジウム(III)イオン）',
+  '50,2':  'Sn²⁺（スズ(II)イオン）',
+  '50,4':  'Sn⁴⁺（スズ(IV)イオン）',
+  '83,3':  'Bi³⁺（ビスマス(III)イオン）',
+  // 非金属・ハロゲン 陰イオン
+  '1,-1':  'H⁻（ヒドリドイオン）',
+  '7,-3':  'N³⁻（窒化物イオン）',
+  '8,-2':  'O²⁻（酸化物イオン）',
+  '8,-1':  'O⁻（酸化物イオン・過酸化物）',
+  '9,-1':  'F⁻（フッ化物イオン）',
+  '15,-3': 'P³⁻（リン化物イオン）',
+  '16,-2': 'S²⁻（硫化物イオン）',
+  '17,-1': 'Cl⁻（塩化物イオン）',
+  '33,-3': 'As³⁻（ヒ化物イオン）',
+  '34,-2': 'Se²⁻（セレン化物イオン）',
+  '35,-1': 'Br⁻（臭化物イオン）',
+  '52,-2': 'Te²⁻（テルル化物イオン）',
+  '53,-1': 'I⁻（ヨウ化物イオン）',
+  // 希土類・その他
+  '57,3':  'La³⁺（ランタン(III)イオン）',
+  '58,3':  'Ce³⁺（セリウム(III)イオン）',
+  '58,4':  'Ce⁴⁺（セリウム(IV)イオン）',
+  '60,3':  'Nd³⁺（ネオジム(III)イオン）',
+  '92,4':  'U⁴⁺（ウラン(IV)イオン）',
+  '92,6':  'U⁶⁺（ウラン(VI)イオン）',
+};
+
+function getIonName(z, charge) {
+  return ION_NAMES[`${z},${charge}`] || null;
+}
+
+// ===== 元素データ =====
+const ELEMENTS = [
+  {z:1, sym:'H', name:'水素', cat:'非金属', color1:'#7eb8f7', color2:'#a8ff78',
+    isotopes:{1:true,2:true,3:false,4:false,5:false},
+    desc:'宇宙で最も豊富な元素。太陽の核融合の主原料。³Hはトリチウムと呼ばれ放射性。'},
+  {z:2, sym:'He', name:'ヘリウム', cat:'希ガス', color1:'#ffd166', color2:'#ff6b6b',
+    isotopes:{3:true,4:true,5:false,6:false},
+    desc:'第2の軽元素。化学的に極めて不活性。⁴Heはα粒子と同一。極低温で超流動を示す。'},
+  {z:3, sym:'Li', name:'リチウム', cat:'アルカリ金属', color1:'#ff4d6d', color2:'#ffd166',
+    isotopes:{6:true,7:true,5:false,8:false,9:false},
+    desc:'最も軽い金属元素。⁷Liが最も安定。リチウムイオン電池の原料として重要。'},
+  {z:4, sym:'Be', name:'ベリリウム', cat:'アルカリ土類', color1:'#7eb8f7', color2:'#ffd166',
+    isotopes:{9:true,7:false,8:false,10:false},
+    desc:'⁹Beのみが安定同位体。X線透過性が高く窓材料に使用。有毒元素。'},
+  {z:5, sym:'B', name:'ホウ素', cat:'半金属', color1:'#a8ff78', color2:'#7eb8f7',
+    isotopes:{10:true,11:true,8:false,9:false,12:false},
+    desc:'¹⁰B・¹¹Bが安定。中性子吸収断面積が大きく原子炉制御棒に使用。'},
+  {z:6, sym:'C', name:'炭素', cat:'非金属', color1:'#7eb8f7', color2:'#a8ff78',
+    isotopes:{12:true,13:true,10:false,11:false,14:false,15:false},
+    desc:'生命の基幹元素。¹²Cは原子質量の基準。¹⁴Cは放射性年代測定に利用。'},
+  {z:7, sym:'N', name:'窒素', cat:'非金属', color1:'#a8ff78', color2:'#ffd166',
+    isotopes:{14:true,15:true,12:false,13:false,16:false,17:false},
+    desc:'大気の78%を占める。¹⁴Nが天然の99.6%。タンパク質・DNAの構成元素。'},
+  {z:8, sym:'O', name:'酸素', cat:'非金属', color1:'#ff4d6d', color2:'#7eb8f7',
+    isotopes:{16:true,17:true,18:true,14:false,15:false,19:false},
+    desc:'地殻で最も豊富な元素。¹⁶Oが99.76%。水・有機物の主成分。'},
+  {z:9, sym:'F', name:'フッ素', cat:'ハロゲン', color1:'#ffd166', color2:'#a8ff78',
+    isotopes:{19:true,17:false,18:false,20:false},
+    desc:'最も電気陰性度が高い元素。¹⁹Fのみ安定。フッ素樹脂の原料。'},
+  {z:10, sym:'Ne', name:'ネオン', cat:'希ガス', color1:'#ff4d6d', color2:'#ffd166',
+    isotopes:{20:true,21:true,22:true,17:false,18:false,19:false},
+    desc:'ネオンサインの赤橙色発光元素。３種の安定同位体を持つ。'},
+  {z:11, sym:'Na', name:'ナトリウム', cat:'アルカリ金属', color1:'#ff4d6d', color2:'#ffd166',
+    isotopes:{23:true,22:false,24:false},
+    desc:'²³Naのみ安定。食塩（NaCl）の成分。神経・筋肉の電位シグナルに必須。'},
+  {z:12, sym:'Mg', name:'マグネシウム', cat:'アルカリ土類', color1:'#7eb8f7', color2:'#a8ff78',
+    isotopes:{24:true,25:true,26:true,20:false,27:false,28:false},
+    desc:'クロロフィルの中心金属。軽量合金材料。３種の安定同位体を持つ。'},
+  {z:13, sym:'Al', name:'アルミニウム', cat:'金属', color1:'#a8ff78', color2:'#7eb8f7',
+    isotopes:{27:true,26:false,28:false,29:false},
+    desc:'²⁷Alのみ安定。地殻で3番目に多い元素。軽量で耐食性が高い実用金属。'},
+  {z:14, sym:'Si', name:'ケイ素', cat:'半金属', color1:'#ffd166', color2:'#7eb8f7',
+    isotopes:{28:true,29:true,30:true,26:false,32:false},
+    desc:'地殻の28%を占める。半導体の主原料。シリコン文明の基盤。'},
+  {z:15, sym:'P', name:'リン', cat:'非金属', color1:'#ff4d6d', color2:'#a8ff78',
+    isotopes:{31:true,30:false,32:false,33:false},
+    desc:'³¹Pのみ安定。DNA・RNAのリン酸骨格の構成元素。ATPエネルギー代謝に必須。'},
+  {z:16, sym:'S', name:'硫黄', cat:'非金属', color1:'#ffd166', color2:'#ff4d6d',
+    isotopes:{32:true,33:true,34:true,36:true,35:false,37:false},
+    desc:'黄色の固体。火山・温泉に存在。アミノ酸（システイン・メチオニン）に含まれる。'},
+  {z:17, sym:'Cl', name:'塩素', cat:'ハロゲン', color1:'#a8ff78', color2:'#ffd166',
+    isotopes:{35:true,37:true,36:false,38:false},
+    desc:'刺激臭の黄緑色ガス。³⁵Cl(75.8%)・³⁷Cl(24.2%)が安定。消毒・漂白に利用。'},
+  {z:18, sym:'Ar', name:'アルゴン', cat:'希ガス', color1:'#7eb8f7', color2:'#ffd166',
+    isotopes:{36:true,38:true,40:true,37:false,39:false,41:false},
+    desc:'大気の0.93%を占める希ガス。溶接シールドガスや白熱灯充填ガスとして使用。'},
+  {z:19, sym:'K', name:'カリウム', cat:'アルカリ金属', color1:'#ff4d6d', color2:'#ffd166',
+    isotopes:{39:true,41:true,40:false},
+    desc:'⁴⁰Kは天然放射性同位体(0.012%)。神経信号伝達・細胞浸透圧調節に必須。'},
+  {z:20, sym:'Ca', name:'カルシウム', cat:'アルカリ土類', color1:'#7eb8f7', color2:'#a8ff78',
+    isotopes:{40:true,42:true,43:true,44:true,46:true,48:true,41:false,45:false},
+    desc:'骨・歯の主成分（ハイドロキシアパタイト）。6種の安定同位体。神経・筋肉機能に必須。'},
+  {z:26, sym:'Fe', name:'鉄', cat:'遷移金属', color1:'#ff4d6d', color2:'#7eb8f7',
+    isotopes:{54:true,56:true,57:true,58:true,55:false,59:false,60:false},
+    desc:'核融合の最終生成物（核子あたり結合エネルギー最大）。ヘモグロビンの中心金属。'},
+  {z:29, sym:'Cu', name:'銅', cat:'遷移金属', color1:'#ffd166', color2:'#ff4d6d',
+    isotopes:{63:true,65:true,64:false,67:false},
+    desc:'２種の安定同位体。電気伝導性が高く電線の主要材料。ヘモシアニンの中心金属。'},
+  {z:47, sym:'Ag', name:'銀', cat:'遷移金属', color1:'#a8ff78', color2:'#7eb8f7',
+    isotopes:{107:true,109:true,105:false,108:false,110:false,111:false},
+    desc:'最高の電気・熱伝導性を持つ元素。写真感光材料・抗菌材料・電子部品に利用。'},
+  {z:79, sym:'Au', name:'金', cat:'遷移金属', color1:'#ffd166', color2:'#ff4d6d',
+    isotopes:{197:true,195:false,196:false,198:false,199:false},
+    desc:'¹⁹⁷Auのみが安定同位体。化学的に極めて安定。電子部品の接点材料・通貨。'},
+  {z:82, sym:'Pb', name:'鉛', cat:'金属', color1:'#7eb8f7', color2:'#a8ff78',
+    isotopes:{204:true,206:true,207:true,208:true,209:false,210:false},
+    desc:'最も重い安定元素（Z=82まで）。4種の安定同位体。放射性崩壊系列の終点。'},
+  {z:92, sym:'U', name:'ウラン', cat:'アクチノイド', color1:'#ff4d6d', color2:'#a8ff78',
+    isotopes:{233:false,234:false,235:false,236:false,238:false},
+    desc:'天然で最も重い元素。²³⁸Uが最多(99.27%)、²³⁵Uが核分裂燃料。すべて放射性。'},
+  // Z=21〜25
+  {z:21, sym:'Sc', name:'スカンジウム', cat:'遷移金属', color1:'#7eb8f7', color2:'#a8ff78',
+    isotopes:{}, desc:'希土類に近い性質を持つ遷移金属。航空機用アルミ合金の強化材。安定同位体は⁴⁵Scのみ。'},
+  {z:22, sym:'Ti', name:'チタン', cat:'遷移金属', color1:'#a8ff78', color2:'#7eb8f7',
+    isotopes:{}, desc:'軽量で高強度・高耐食性の金属。航空宇宙・医療インプラントに使用。5種の安定同位体。'},
+  {z:23, sym:'V', name:'バナジウム', cat:'遷移金属', color1:'#ffd166', color2:'#ff4d6d',
+    isotopes:{}, desc:'鋼鉄の強化合金元素として重要。バナジウムレドックスフロー電池の活物質。'},
+  {z:24, sym:'Cr', name:'クロム', cat:'遷移金属', color1:'#7eb8f7', color2:'#ffd166',
+    isotopes:{}, desc:'ステンレス鋼の主要成分。硬質クロムめっきに使用。4種の安定同位体を持つ。'},
+  {z:25, sym:'Mn', name:'マンガン', cat:'遷移金属', color1:'#ff4d6d', color2:'#7eb8f7',
+    isotopes:{}, desc:'鉄鋼の脱酸・脱硫剤。乾電池の正極材料。安定同位体は⁵⁵Mnのみ。'},
+  // Z=27〜28
+  {z:27, sym:'Co', name:'コバルト', cat:'遷移金属', color1:'#7eb8f7', color2:'#ff4d6d',
+    isotopes:{}, desc:'磁性材料・超硬合金・ビタミンB₁₂の中心金属。⁶⁰Coはγ線源として医療に使用。'},
+  {z:28, sym:'Ni', name:'ニッケル', cat:'遷移金属', color1:'#a8ff78', color2:'#ffd166',
+    isotopes:{}, desc:'耐食性合金の主要成分。ステンレス鋼・電池材料。5種の安定同位体を持つ。'},
+  // Z=30〜46
+  {z:30, sym:'Zn', name:'亜鉛', cat:'遷移金属', color1:'#7eb8f7', color2:'#a8ff78',
+    isotopes:{}, desc:'めっき（溶融亜鉛）・真鍮合金の成分。酵素の補因子として生体に必須。'},
+  {z:31, sym:'Ga', name:'ガリウム', cat:'金属', color1:'#ffd166', color2:'#7eb8f7',
+    isotopes:{}, desc:'融点29.8℃で手の温度で溶ける金属。GaAs半導体・LEDの材料。'},
+  {z:32, sym:'Ge', name:'ゲルマニウム', cat:'半金属', color1:'#a8ff78', color2:'#ffd166',
+    isotopes:{}, desc:'メンデレーエフが存在を予言した元素。半導体・光ファイバー材料。'},
+  {z:33, sym:'As', name:'ヒ素', cat:'半金属', color1:'#ff4d6d', color2:'#a8ff78',
+    isotopes:{}, desc:'有毒な半金属。GaAs半導体の原料。砒素化合物は殺虫剤・防腐剤に使用歴あり。'},
+  {z:34, sym:'Se', name:'セレン', cat:'非金属', color1:'#ffd166', color2:'#ff4d6d',
+    isotopes:{}, desc:'光導電性を持ち複写機のドラムに使用。生体に微量必須。6種の安定同位体。'},
+  {z:35, sym:'Br', name:'臭素', cat:'ハロゲン', color1:'#ff4d6d', color2:'#ffd166',
+    isotopes:{}, desc:'常温で液体のハロゲン。難燃剤・写真感光材料・農薬の原料。'},
+  {z:36, sym:'Kr', name:'クリプトン', cat:'希ガス', color1:'#7eb8f7', color2:'#a8ff78',
+    isotopes:{}, desc:'蛍光灯・レーザーに使用される希ガス。6種の安定同位体を持つ。'},
+  {z:37, sym:'Rb', name:'ルビジウム', cat:'アルカリ金属', color1:'#ff4d6d', color2:'#ffd166',
+    isotopes:{}, desc:'原子時計の基準元素。⁸⁵Rbが安定、⁸⁷Rbは半減期488億年の放射性。'},
+  {z:38, sym:'Sr', name:'ストロンチウム', cat:'アルカリ土類', color1:'#7eb8f7', color2:'#ff4d6d',
+    isotopes:{}, desc:'花火の赤色発色剤。⁹⁰Srは核分裂生成物として環境問題になった放射性同位体。'},
+  {z:39, sym:'Y', name:'イットリウム', cat:'遷移金属', color1:'#a8ff78', color2:'#7eb8f7',
+    isotopes:{}, desc:'YAGレーザー・蛍光体・超伝導材料に使用。安定同位体は⁸⁹Yのみ。'},
+  {z:40, sym:'Zr', name:'ジルコニウム', cat:'遷移金属', color1:'#ffd166', color2:'#a8ff78',
+    isotopes:{}, desc:'原子炉燃料被覆管の材料。中性子吸収断面積が小さい。宝石ジルコンの成分。'},
+  {z:41, sym:'Nb', name:'ニオブ', cat:'遷移金属', color1:'#7eb8f7', color2:'#ffd166',
+    isotopes:{}, desc:'超伝導磁石（MRI・加速器）の材料。鉄鋼の微量添加で強度向上。'},
+  {z:42, sym:'Mo', name:'モリブデン', cat:'遷移金属', color1:'#a8ff78', color2:'#ff4d6d',
+    isotopes:{}, desc:'高融点金属。鋼鉄の合金元素。酵素の補因子として生体に必須。'},
+  {z:43, sym:'Tc', name:'テクネチウム', cat:'遷移金属', color1:'#ff4d6d', color2:'#7eb8f7',
+    isotopes:{}, desc:'安定同位体が存在しない最小の元素。⁹⁹ᵐTcは核医学診断の最重要放射性医薬品。'},
+  {z:44, sym:'Ru', name:'ルテニウム', cat:'遷移金属', color1:'#ffd166', color2:'#7eb8f7',
+    isotopes:{}, desc:'白金族元素。触媒・電気接点・硬質合金に使用。7種の安定同位体を持つ。'},
+  {z:45, sym:'Rh', name:'ロジウム', cat:'遷移金属', color1:'#a8ff78', color2:'#ffd166',
+    isotopes:{}, desc:'自動車触媒コンバーターの必須成分。高価な白金族元素。安定同位体は¹⁰³Rhのみ。'},
+  {z:46, sym:'Pd', name:'パラジウム', cat:'遷移金属', color1:'#7eb8f7', color2:'#a8ff78',
+    isotopes:{}, desc:'水素を大量吸蔵する性質を持つ白金族元素。触媒・歯科材料に使用。'},
+  // Z=48〜46の間
+  {z:48, sym:'Cd', name:'カドミウム', cat:'遷移金属', color1:'#ff4d6d', color2:'#ffd166',
+    isotopes:{}, desc:'有毒重金属（イタイイタイ病の原因）。NiCd電池・太陽電池材料。8種の安定同位体。'},
+  {z:49, sym:'In', name:'インジウム', cat:'金属', color1:'#ffd166', color2:'#a8ff78',
+    isotopes:{}, desc:'ITO（インジウム錫酸化物）として液晶・タッチパネルの透明電極に使用。'},
+  {z:50, sym:'Sn', name:'スズ', cat:'金属', color1:'#a8ff78', color2:'#7eb8f7',
+    isotopes:{}, desc:'ブリキ缶のめっき材料。はんだの成分。10種の安定同位体（最多）を持つ。'},
+  {z:51, sym:'Sb', name:'アンチモン', cat:'半金属', color1:'#7eb8f7', color2:'#ff4d6d',
+    isotopes:{}, desc:'半導体・難燃剤・鉛蓄電池の合金添加剤。2種の安定同位体を持つ。'},
+  {z:52, sym:'Te', name:'テルル', cat:'半金属', color1:'#ffd166', color2:'#a8ff78',
+    isotopes:{}, desc:'カドミウムテルライド太陽電池の材料。希少な半金属元素。8種の安定同位体。'},
+  {z:53, sym:'I', name:'ヨウ素', cat:'ハロゲン', color1:'#ff4d6d', color2:'#7eb8f7',
+    isotopes:{}, desc:'甲状腺ホルモンの構成元素。¹²⁷Iのみ安定。¹³¹Iは甲状腺がん治療に使用。'},
+  {z:54, sym:'Xe', name:'キセノン', cat:'希ガス', color1:'#a8ff78', color2:'#ffd166',
+    isotopes:{}, desc:'イオンエンジン・フラッシュランプ・麻酔に使用。9種の安定同位体を持つ。'},
+  {z:55, sym:'Cs', name:'セシウム', cat:'アルカリ金属', color1:'#ff4d6d', color2:'#a8ff78',
+    isotopes:{}, desc:'原子時計（SI秒の定義）の基準元素。¹³³Csが安定。¹³⁷Csは核分裂生成物。'},
+  {z:56, sym:'Ba', name:'バリウム', cat:'アルカリ土類', color1:'#7eb8f7', color2:'#ffd166',
+    isotopes:{}, desc:'X線造影剤（硫酸バリウム）として消化管検査に使用。7種の安定同位体。'},
+  {z:57, sym:'La', name:'ランタン', cat:'ランタノイド', color1:'#a8ff78', color2:'#7eb8f7',
+    isotopes:{}, desc:'希土類元素の筆頭。光学ガラス・水素吸蔵合金（NiMH電池）の材料。'},
+  {z:58, sym:'Ce', name:'セリウム', cat:'ランタノイド', color1:'#ffd166', color2:'#ff4d6d',
+    isotopes:{}, desc:'最も豊富な希土類元素。研磨剤・触媒・ガラス脱色剤として使用。'},
+  {z:59, sym:'Pr', name:'プラセオジム', cat:'ランタノイド', color1:'#ff4d6d', color2:'#a8ff78',
+    isotopes:{}, desc:'強力永久磁石（Nd-Fe-B磁石）の成分。安定同位体は¹⁴¹Prのみ。'},
+  {z:60, sym:'Nd', name:'ネオジム', cat:'ランタノイド', color1:'#7eb8f7', color2:'#ff4d6d',
+    isotopes:{}, desc:'世界最強の永久磁石（ネオジム磁石）の主成分。EV・風力発電に不可欠。'},
+  {z:61, sym:'Pm', name:'プロメチウム', cat:'ランタノイド', color1:'#ff4d6d', color2:'#ffd166',
+    isotopes:{}, desc:'安定同位体が存在しない希土類元素。原子炉で生産。核電池に利用。'},
+  {z:62, sym:'Sm', name:'サマリウム', cat:'ランタノイド', color1:'#a8ff78', color2:'#7eb8f7',
+    isotopes:{}, desc:'サマリウムコバルト磁石の原料。中性子吸収材料として原子炉制御棒に使用。'},
+  {z:63, sym:'Eu', name:'ユウロピウム', cat:'ランタノイド', color1:'#ffd166', color2:'#a8ff78',
+    isotopes:{}, desc:'蛍光体の赤色発光成分。紙幣の偽造防止蛍光インクに使用。'},
+  {z:64, sym:'Gd', name:'ガドリニウム', cat:'ランタノイド', color1:'#7eb8f7', color2:'#ffd166',
+    isotopes:{}, desc:'MRI造影剤の中心金属。最大の中性子吸収断面積を持つ元素。'},
+  {z:65, sym:'Tb', name:'テルビウム', cat:'ランタノイド', color1:'#a8ff78', color2:'#ff4d6d',
+    isotopes:{}, desc:'緑色蛍光体の発光成分。磁歪材料テルフェノールDの成分。安定同位体は¹⁵⁹Tbのみ。'},
+  {z:66, sym:'Dy', name:'ジスプロシウム', cat:'ランタノイド', color1:'#ff4d6d', color2:'#7eb8f7',
+    isotopes:{}, desc:'ネオジム磁石の高温特性改善添加元素。EV・ハイブリッド車に不可欠。'},
+  {z:67, sym:'Ho', name:'ホルミウム', cat:'ランタノイド', color1:'#ffd166', color2:'#a8ff78',
+    isotopes:{}, desc:'最大の磁気モーメントを持つ元素。外科用レーザー（Ho:YAGレーザー）に使用。'},
+  {z:68, sym:'Er', name:'エルビウム', cat:'ランタノイド', color1:'#7eb8f7', color2:'#ff4d6d',
+    isotopes:{}, desc:'光ファイバー増幅器（EDFA）の活性元素。通信インフラに不可欠。'},
+  {z:69, sym:'Tm', name:'ツリウム', cat:'ランタノイド', color1:'#a8ff78', color2:'#ffd166',
+    isotopes:{}, desc:'最も希少な希土類の一つ。X線装置・レーザーに使用。安定同位体は¹⁶⁹Tmのみ。'},
+  {z:70, sym:'Yb', name:'イッテルビウム', cat:'ランタノイド', color1:'#ff4d6d', color2:'#a8ff78',
+    isotopes:{}, desc:'光格子時計の基準元素。ステンレス鋼の添加元素。7種の安定同位体。'},
+  {z:71, sym:'Lu', name:'ルテチウム', cat:'ランタノイド', color1:'#ffd166', color2:'#7eb8f7',
+    isotopes:{}, desc:'最後の希土類元素。PETスキャナーの結晶材料。¹⁷⁷Luはがん治療用放射性医薬品。'},
+  {z:72, sym:'Hf', name:'ハフニウム', cat:'遷移金属', color1:'#7eb8f7', color2:'#a8ff78',
+    isotopes:{}, desc:'ジルコニウムに常に混在する元素。原子炉制御棒・CPUゲート絶縁膜に使用。'},
+  {z:73, sym:'Ta', name:'タンタル', cat:'遷移金属', color1:'#a8ff78', color2:'#ff4d6d',
+    isotopes:{}, desc:'スマートフォンのコンデンサに不可欠。高融点・高耐食性の金属。'},
+  {z:74, sym:'W', name:'タングステン', cat:'遷移金属', color1:'#ffd166', color2:'#7eb8f7',
+    isotopes:{}, desc:'最高融点の金属（3422℃）。白熱電球のフィラメント・超硬工具に使用。'},
+  {z:75, sym:'Re', name:'レニウム', cat:'遷移金属', color1:'#ff4d6d', color2:'#ffd166',
+    isotopes:{}, desc:'最後に発見された安定元素（1925年）。ジェットエンジン用超合金の成分。'},
+  {z:76, sym:'Os', name:'オスミウム', cat:'遷移金属', color1:'#7eb8f7', color2:'#ff4d6d',
+    isotopes:{}, desc:'最も密度が高い元素（22.59 g/cm³）。万年筆のペン先・触媒に使用。'},
+  {z:77, sym:'Ir', name:'イリジウム', cat:'遷移金属', color1:'#a8ff78', color2:'#7eb8f7',
+    isotopes:{}, desc:'最も耐食性の高い金属。白金・イリジウム合金はかつての国際キログラム原器の材料。'},
+  {z:78, sym:'Pt', name:'白金', cat:'遷移金属', color1:'#ffd166', color2:'#a8ff78',
+    isotopes:{}, desc:'触媒（自動車・燃料電池）・宝飾品・医療機器に使用。6種の安定同位体。'},
+  {z:80, sym:'Hg', name:'水銀', cat:'遷移金属', color1:'#7eb8f7', color2:'#ff4d6d',
+    isotopes:{}, desc:'常温で液体の金属。蛍光灯・体温計に使用。神経毒性あり使用規制が進む。'},
+  {z:81, sym:'Tl', name:'タリウム', cat:'金属', color1:'#ff4d6d', color2:'#a8ff78',
+    isotopes:{}, desc:'有毒重金属。半導体センサー・核医学の心筋血流検査に使用。'},
+  {z:83, sym:'Bi', name:'ビスマス', cat:'金属', color1:'#a8ff78', color2:'#ffd166',
+    isotopes:{}, desc:'最も重い安定（準安定）元素。胃腸薬・化粧品・無鉛はんだに使用。'},
+  {z:84, sym:'Po', name:'ポロニウム', cat:'金属', color1:'#ff4d6d', color2:'#7eb8f7',
+    isotopes:{}, desc:'マリ・キュリーが発見した放射性元素。α線源として静電除去器に微量使用。'},
+  {z:85, sym:'At', name:'アスタチン', cat:'ハロゲン', color1:'#ff4d6d', color2:'#a8ff78',
+    isotopes:{}, desc:'最も希少な天然元素。地球上に約30gしか存在しない。がん治療研究に注目。'},
+  {z:86, sym:'Rn', name:'ラドン', cat:'希ガス', color1:'#7eb8f7', color2:'#ffd166',
+    isotopes:{}, desc:'放射性の希ガス。地下や建物に蓄積し肺がんリスクとなる天然放射線源。'},
+  {z:87, sym:'Fr', name:'フランシウム', cat:'アルカリ金属', color1:'#ff4d6d', color2:'#ff4d6d',
+    isotopes:{}, desc:'最も不安定な天然元素。最長半減期は22分。地球上に数十原子しか存在しない。'},
+  {z:88, sym:'Ra', name:'ラジウム', cat:'アルカリ土類', color1:'#a8ff78', color2:'#ff4d6d',
+    isotopes:{}, desc:'マリ・キュリーが発見した放射性元素。かつて夜光塗料に使用。現在は研究用。'},
+  {z:89, sym:'Ac', name:'アクチニウム', cat:'アクチノイド', color1:'#ffd166', color2:'#ff4d6d',
+    isotopes:{}, desc:'アクチノイド系列の筆頭。強いβ・γ線源。がん治療用放射性医薬品として研究中。'},
+  {z:90, sym:'Th', name:'トリウム', cat:'アクチノイド', color1:'#7eb8f7', color2:'#a8ff78',
+    isotopes:{}, desc:'次世代原子炉燃料として注目される放射性元素。²³²Thの半減期は140億年。'},
+  {z:91, sym:'Pa', name:'プロトアクチニウム', cat:'アクチノイド', color1:'#ff4d6d', color2:'#ffd166',
+    isotopes:{}, desc:'ウラン鉱石に微量含まれる希少放射性元素。²³¹Paの半減期は3.3万年。'},
+  {z:93, sym:'Np', name:'ネプツニウム', cat:'アクチノイド', color1:'#a8ff78', color2:'#ff4d6d',
+    isotopes:{}, desc:'最初に発見された超ウラン元素（1940年）。原子炉内でウランから生成される。'},
+  {z:94, sym:'Pu', name:'プルトニウム', cat:'アクチノイド', color1:'#ff4d6d', color2:'#7eb8f7',
+    isotopes:{}, desc:'核兵器・原子炉燃料。²³⁹Puは核分裂性。探査機のRTGに²³⁸Puが使用される。'},
+  {z:95, sym:'Am', name:'アメリシウム', cat:'アクチノイド', color1:'#ffd166', color2:'#a8ff78',
+    isotopes:{}, desc:'煙感知器のイオン化式センサーに²⁴¹Amが使用される身近な超ウラン元素。'},
+  {z:96, sym:'Cm', name:'キュリウム', cat:'アクチノイド', color1:'#7eb8f7', color2:'#ff4d6d',
+    isotopes:{}, desc:'マリ・キュリーにちなんで命名。探査機の熱電池（RTG）に使用された。'},
+  {z:97, sym:'Bk', name:'バークリウム', cat:'アクチノイド', color1:'#a8ff78', color2:'#7eb8f7',
+    isotopes:{}, desc:'カリフォルニア大学バークレー校で合成。²⁴⁹Bkはテネシン合成の標的に使用。'},
+  {z:98, sym:'Cf', name:'カリホルニウム', cat:'アクチノイド', color1:'#ff4d6d', color2:'#ffd166',
+    isotopes:{}, desc:'中性子源として金属探知・がん治療に応用。²⁵²Cfは強力な中性子放出源。'},
+  {z:99, sym:'Es', name:'アインスタイニウム', cat:'アクチノイド', color1:'#ffd166', color2:'#ff4d6d',
+    isotopes:{}, desc:'水爆実験の残骸から発見（1952年）。アインシュタインにちなんで命名。'},
+  {z:100, sym:'Fm', name:'フェルミウム', cat:'アクチノイド', color1:'#7eb8f7', color2:'#a8ff78',
+    isotopes:{}, desc:'フェルミにちなんで命名。水爆実験で発見。化学的性質の研究が困難な超重元素。'},
+  {z:101, sym:'Md', name:'メンデレビウム', cat:'アクチノイド', color1:'#a8ff78', color2:'#ffd166',
+    isotopes:{}, desc:'メンデレーエフにちなんで命名。1955年に合成。数十億個程度しか生成できない。'},
+  {z:102, sym:'No', name:'ノーベリウム', cat:'アクチノイド', color1:'#ff4d6d', color2:'#a8ff78',
+    isotopes:{}, desc:'ノーベルにちなんで命名。最長半減期は²⁵⁹Noの58分。'},
+  {z:103, sym:'Lr', name:'ローレンシウム', cat:'アクチノイド', color1:'#ffd166', color2:'#7eb8f7',
+    isotopes:{}, desc:'サイクロトロン発明者ローレンスにちなんで命名。アクチノイド最後の元素。'},
+  {z:104, sym:'Rf', name:'ラザホージウム', cat:'遷移金属', color1:'#7eb8f7', color2:'#ff4d6d',
+    isotopes:{}, desc:'ラザフォードにちなんで命名。超アクチノイド元素の最初。化学的性質はHfに類似。'},
+  {z:105, sym:'Db', name:'ドブニウム', cat:'遷移金属', color1:'#a8ff78', color2:'#7eb8f7',
+    isotopes:{}, desc:'ロシアのドゥブナ研究所にちなんで命名。化学的性質はTaに類似。'},
+  {z:106, sym:'Sg', name:'シーボーギウム', cat:'遷移金属', color1:'#ff4d6d', color2:'#a8ff78',
+    isotopes:{}, desc:'超ウラン元素の研究者シーボーグにちなんで命名。化学的性質はWに類似。'},
+  {z:107, sym:'Bh', name:'ボーリウム', cat:'遷移金属', color1:'#ffd166', color2:'#ff4d6d',
+    isotopes:{}, desc:'ニールス・ボーアにちなんで命名。化学的性質はReに類似とされる。'},
+  {z:108, sym:'Hs', name:'ハッシウム', cat:'遷移金属', color1:'#7eb8f7', color2:'#ffd166',
+    isotopes:{}, desc:'ドイツのヘッセン州にちなんで命名。化学的性質はOsに類似とされる。'},
+  {z:109, sym:'Mt', name:'マイトネリウム', cat:'遷移金属', color1:'#a8ff78', color2:'#ff4d6d',
+    isotopes:{}, desc:'リーゼ・マイトナーにちなんで命名。核分裂の理論解明に貢献した物理学者。'},
+  {z:110, sym:'Ds', name:'ダームスタチウム', cat:'遷移金属', color1:'#ff4d6d', color2:'#7eb8f7',
+    isotopes:{}, desc:'ドイツのダルムシュタットにちなんで命名。化学的性質はPtに類似とされる。'},
+  {z:111, sym:'Rg', name:'レントゲニウム', cat:'遷移金属', color1:'#ffd166', color2:'#a8ff78',
+    isotopes:{}, desc:'X線を発見したレントゲンにちなんで命名。半減期は26秒（²⁸⁰Rg）。'},
+  {z:112, sym:'Cn', name:'コペルニシウム', cat:'遷移金属', color1:'#7eb8f7', color2:'#ffd166',
+    isotopes:{}, desc:'コペルニクスにちなんで命名。常温で気体の可能性が示唆される超重元素。'},
+  {z:113, sym:'Nh', name:'ニホニウム', cat:'金属', color1:'#a8ff78', color2:'#7eb8f7',
+    isotopes:{}, desc:'日本（RIKEN）が合成・命名した元素。日本語由来の元素名は初。2016年正式命名。'},
+  {z:114, sym:'Fl', name:'フレロビウム', cat:'金属', color1:'#ff4d6d', color2:'#ffd166',
+    isotopes:{}, desc:'フリョーロフ核反応研究所にちなんで命名。化学的性質は希ガスに類似とされる。'},
+  {z:115, sym:'Mc', name:'モスコビウム', cat:'金属', color1:'#ffd166', color2:'#ff4d6d',
+    isotopes:{}, desc:'モスクワ州にちなんで命名。2016年正式命名。半減期は約0.65秒。'},
+  {z:116, sym:'Lv', name:'リバモリウム', cat:'金属', color1:'#7eb8f7', color2:'#a8ff78',
+    isotopes:{}, desc:'ローレンス・リバモア国立研究所にちなんで命名。半減期は約61ミリ秒。'},
+  {z:117, sym:'Ts', name:'テネシン', cat:'ハロゲン', color1:'#a8ff78', color2:'#ff4d6d',
+    isotopes:{}, desc:'テネシー州にちなんで命名。2016年正式命名。最重ハロゲン族元素。'},
+  {z:118, sym:'Og', name:'オガネソン', cat:'希ガス', color1:'#ff4d6d', color2:'#a8ff78',
+    isotopes:{}, desc:'ユーリー・オガネシアンにちなんで命名。現在確認されている最重の元素（Z=118）。'},
+];
+
+// ===== JSマーキーエンジン =====
+const marqueeState = {
+  pos: 0, halfWidth: 0, speed: 0.3, raf: null,
+  lastTime: null,
+  dragging: false, dragStartX: 0, dragStartPos: 0, touchOnMarquee: false,
+};
+
+function marqueeStart() {
+  cancelAnimationFrame(marqueeState.raf);
+  const track = document.getElementById('marqueeTrack');
+  if (!track) return;
+  marqueeState.halfWidth = track.scrollWidth / 2;
+  marqueeState.pos = 0;
+  marqueeState.lastTime = null;
+  marqueeLoop();
+}
+
+function marqueeLoop(timestamp) {
+  if (marqueeState.dragging) {
+    marqueeState.raf = requestAnimationFrame(marqueeLoop);
+    return;
+  }
+  const track = document.getElementById('marqueeTrack');
+  if (!track) return;
+
+  // 時間ベース（px/秒）で速度を統一
+  const PX_PER_SEC = 36;
+  if (marqueeState.lastTime != null) {
+    const dt = (timestamp - marqueeState.lastTime) / 1000;
+    marqueeState.pos -= PX_PER_SEC * dt;
+    if (marqueeState.halfWidth > 0 && -marqueeState.pos >= marqueeState.halfWidth) {
+      marqueeState.pos += marqueeState.halfWidth;
+    }
+    track.style.transform = `translateX(${marqueeState.pos}px)`;
+  }
+  marqueeState.lastTime = timestamp;
+  marqueeState.raf = requestAnimationFrame(marqueeLoop);
+}
+
+function marqueeStop() {
+  cancelAnimationFrame(marqueeState.raf);
+  marqueeState.raf = null;
+  const track = document.getElementById('marqueeTrack');
+  if (track) track.style.transform = 'translateX(0)';
+  marqueeState.pos = 0;
+}
+
+// マーキーバーへのタッチで巻き戻し
+document.addEventListener('touchstart', e => {
+  const bar = document.getElementById('marqueeBar');
+  if (!bar || bar.style.display === 'none') return;
+  if (bar.contains(e.target)) {
+    marqueeState.touchOnMarquee = true;
+    marqueeState.dragging = true;
+    marqueeState.dragStartX = e.touches[0].clientX;
+    marqueeState.dragStartPos = marqueeState.pos;
+  }
+}, { passive: true });
+
+document.addEventListener('touchmove', e => {
+  if (!marqueeState.dragging || !marqueeState.touchOnMarquee) return;
+  const dx = e.touches[0].clientX - marqueeState.dragStartX;
+  const track = document.getElementById('marqueeTrack');
+  if (!track) return;
+  let newPos = marqueeState.dragStartPos + dx;
+  const hw = marqueeState.halfWidth;
+  if (hw > 0) {
+    if (newPos > 0) newPos -= hw;
+    if (newPos < -hw) newPos += hw;
+  }
+  marqueeState.pos = newPos;
+  track.style.transform = `translateX(${newPos}px)`;
+}, { passive: true });
+
+document.addEventListener('touchend', () => {
+  if (marqueeState.touchOnMarquee) {
+    marqueeState.dragging = false;
+    marqueeState.touchOnMarquee = false;
+  }
+}, { passive: true });
+
+// ===== 状態 =====
+let p = 0, n = 0, e = 0;
+let collection = [];
+let autoCollectTimer = null;
+const AUTO_COLLECT_DELAY = 2000; // ms
+
+function getElement(z) { return ELEMENTS.find(el => el.z === z) || null; }
+
+// ===== ENSDF/IAEA 安定核種データ（全253核種、Z=1〜83） =====
+// 出典: IAEA LiveChart of Nuclides, ENSDF database
+// 形式: "Z-N" のSetで安定核種を管理
+const STABLE_NUCLIDES = new Set([
+  // H(1)
+  '1-0','1-1',
+  // He(2)
+  '2-1','2-2',
+  // Li(3)
+  '3-3','3-4',
+  // Be(4)
+  '4-5',
+  // B(5)
+  '5-5','5-6',
+  // C(6)
+  '6-6','6-7',
+  // N(7)
+  '7-7','7-8',
+  // O(8)
+  '8-8','8-9','8-10',
+  // F(9)
+  '9-10',
+  // Ne(10)
+  '10-10','10-11','10-12',
+  // Na(11)
+  '11-12',
+  // Mg(12)
+  '12-12','12-13','12-14',
+  // Al(13)
+  '13-14',
+  // Si(14)
+  '14-14','14-15','14-16',
+  // P(15)
+  '15-16',
+  // S(16)
+  '16-16','16-17','16-18','16-20',
+  // Cl(17)
+  '17-18','17-20',
+  // Ar(18)
+  '18-18','18-20','18-22',
+  // K(19)
+  '19-20','19-22',
+  // Ca(20)
+  '20-20','20-22','20-23','20-24','20-26','20-28',
+  // Sc(21)
+  '21-24',
+  // Ti(22)
+  '22-24','22-25','22-26','22-27','22-28',
+  // V(23)
+  '23-27','23-28',
+  // Cr(24)
+  '24-26','24-28','24-29','24-30',
+  // Mn(25)
+  '25-30',
+  // Fe(26)
+  '26-28','26-30','26-31','26-32',
+  // Co(27)
+  '27-32',
+  // Ni(28)
+  '28-30','28-32','28-33','28-34','28-36',
+  // Cu(29)
+  '29-34','29-36',
+  // Zn(30)
+  '30-34','30-36','30-37','30-38','30-40',
+  // Ga(31)
+  '31-38','31-40',
+  // Ge(32)
+  '32-38','32-40','32-41','32-42','32-44',
+  // As(33)
+  '33-42',
+  // Se(34)
+  '34-40','34-42','34-43','34-44','34-46','34-48',
+  // Br(35)
+  '35-44','35-46',
+  // Kr(36)
+  '36-42','36-44','36-46','36-47','36-48','36-50',
+  // Rb(37)
+  '37-48','37-50',
+  // Sr(38)
+  '38-46','38-48','38-49','38-50','38-52',
+  // Y(39)
+  '39-50',
+  // Zr(40)
+  '40-50','40-51','40-52','40-54','40-56',
+  // Nb(41)
+  '41-52',
+  // Mo(42)
+  '42-50','42-52','42-53','42-54','42-56','42-57','42-58',
+  // Ru(44)
+  '44-52','44-54','44-55','44-56','44-57','44-58','44-60',
+  // Rh(45)
+  '45-58',
+  // Pd(46)
+  '46-56','46-58','46-59','46-60','46-62','46-64',
+  // Ag(47)
+  '47-60','47-62',
+  // Cd(48)
+  '48-58','48-60','48-62','48-63','48-64','48-66','48-68',
+  // In(49)
+  '49-64','49-66',
+  // Sn(50)
+  '50-62','50-64','50-65','50-66','50-67','50-68','50-69','50-70','50-72','50-74',
+  // Sb(51)
+  '51-70','51-72',
+  // Te(52)
+  '52-68','52-70','52-71','52-72','52-73','52-74','52-76','52-78',
+  // I(53)
+  '53-74',
+  // Xe(54)
+  '54-70','54-72','54-74','54-75','54-76','54-77','54-78','54-80','54-82',
+  // Cs(55)
+  '55-78',
+  // Ba(56)
+  '56-74','56-76','56-78','56-79','56-80','56-82',
+  // La(57)
+  '57-81','57-82',
+  // Ce(58)
+  '58-78','58-80','58-82','58-84',
+  // Pr(59)
+  '59-82',
+  // Nd(60)
+  '60-82','60-83','60-84','60-85','60-86','60-88',
+  // Sm(62)
+  '62-82','62-84','62-85','62-86','62-87','62-88','62-90',
+  // Eu(63)
+  '63-88','63-90',
+  // Gd(64)
+  '64-88','64-90','64-91','64-92','64-93','64-94','64-96',
+  // Tb(65)
+  '65-94',
+  // Dy(66)
+  '66-90','66-92','66-93','66-94','66-95','66-96','66-98',
+  // Ho(67)
+  '67-98',
+  // Er(68)
+  '68-94','68-96','68-97','68-98','68-99','68-100','68-102',
+  // Tm(69)
+  '69-100',
+  // Yb(70)
+  '70-98','70-100','70-101','70-102','70-103','70-104','70-106',
+  // Lu(71)
+  '71-104','71-105',
+  // Hf(72)
+  '72-102','72-104','72-105','72-106','72-107','72-108',
+  // Ta(73)
+  '73-108',
+  // W(74)
+  '74-106','74-108','74-109','74-110','74-112','74-114',
+  // Re(75)
+  '75-110','75-112',
+  // Os(76)
+  '76-108','76-110','76-111','76-112','76-113','76-114','76-116',
+  // Ir(77)
+  '77-114','77-116',
+  // Pt(78)
+  '78-112','78-114','78-116','78-117','78-118','78-120',
+  // Au(79)
+  '79-118',
+  // Hg(80)
+  '80-116','80-118','80-119','80-120','80-121','80-122','80-124',
+  // Tl(81)
+  '81-122','81-124',
+  // Pb(82)
+  '82-122','82-124','82-125','82-126',
+  // Bi(83)
+  '83-126',
+]);
+
+// 観測されている放射性核種（Z=1〜83のうちよく知られたもの）
+// 安定でない = 放射性。unknown は未観測・極短寿命
+function estimateStability(z, nv) {
+  if (z === 0 && nv === 0) return 'none';
+  if (z === 0) return 'unstable';
+  if (z >= 84) return 'unstable'; // Z≥84は全核種放射性
+  const key = `${z}-${nv}`;
+  if (STABLE_NUCLIDES.has(key)) return 'stable';
+  // A = z+nv が現実的な範囲か
+  const A = z + nv;
+  if (A < z || nv < 0) return 'unknown';
+  // 存在が知られている範囲（ドリップラインの概算）
+  const nMin = Math.max(0, Math.round(z * 0.4));
+  const nMax = Math.round(z * 1.8 + 10);
+  if (nv < nMin || nv > nMax) return 'unknown';
+  return 'unstable'; // 範囲内だが安定でない → 放射性
+}
+
+function stabColor(s) {
+  if (s === 'stable')   return '#a8ff78';
+  if (s === 'unstable') return '#ff4d6d';
+  if (s === 'unknown')  return '#ffd166';
+  return '#2a4a6a';
+}
+
+// ===== タブ =====
+function switchTab(name) {
+  ['simulator','chart','ptable'].forEach(t => {
+    document.getElementById('tab-'+t).classList.toggle('active', t === name);
+  });
+  document.getElementById('tabSimBtn').classList.toggle('active', name === 'simulator');
+  document.getElementById('tabChartBtn').classList.toggle('active', name === 'chart');
+  document.getElementById('tabPtableBtn').classList.toggle('active', name === 'ptable');
+  if (name === 'chart') { renderCollection(); renderChart(); requestAnimationFrame(scrollToLatestNuclide); }
+  if (name === 'ptable') { ptableRendered = false; renderPtable(); requestAnimationFrame(scrollToLatestElement); }
+}
+
+// ===== メインUI =====
+function update() {
+  document.getElementById('pCount').textContent = p;
+  document.getElementById('nCount').textContent = n;
+  document.getElementById('eCount').textContent = e;
+  const A = p + n, charge = p - e;
+  document.getElementById('sumZ').textContent = p;
+  document.getElementById('sumA').textContent = A;
+  // 元素記号
+  const el = getElement(p);
+  document.getElementById('sumSym').textContent = p === 0 ? '?' : (el ? el.sym : '?');
+  // 電荷（中性は非表示、±1は数字なし、±2以上は数字+符号）
+  const chargeEl = document.getElementById('sumCharge');
+  if (charge === 0) {
+    chargeEl.textContent = '';
+  } else if (charge === 1) {
+    chargeEl.textContent = '+';
+  } else if (charge === -1) {
+    chargeEl.textContent = '−';
+  } else if (charge > 1) {
+    chargeEl.textContent = charge + '+';
+  } else {
+    chargeEl.textContent = Math.abs(charge) + '−';
+  }
+  updateNuclideInfo();
+  drawNucleus();
+  drawElectrons();
+  updateOrbits();
+  updateChargeChart();
+
+  // 自動コレクション：タイマーリセット
+  clearTimeout(autoCollectTimer);
+  stopCountdownBar();
+  if (p > 0 && !collection.some(c => c.z === p && c.n_val === n)) {
+    startCountdownBar();
+    autoCollectTimer = setTimeout(() => {
+      if (p > 0 && !collection.some(c => c.z === p && c.n_val === n)) {
+        collectNuclide(true);
+      }
+    }, AUTO_COLLECT_DELAY);
+  }
+}
+
+function updateNuclideInfo() {
+  const card     = document.getElementById('element-card');
+  const bohrWrap = document.getElementById('nucleusContainer').closest('.bohr-wrap') || document.querySelector('.bohr-wrap');
+  const marqueeBar   = document.getElementById('marqueeBar');
+  const marqueeText1 = document.getElementById('marqueeText1');
+  const marqueeText2 = document.getElementById('marqueeText2');
+  const A = p + n, charge = p - e;
+
+  if (p === 0) {
+    card.innerHTML = `<div class="empty-state-sm">⚛<br><span style="font-size:10px">陽子を追加</span></div>`;
+    card.style.setProperty('--card-gradient','transparent');
+    bohrWrap.classList.remove('has-nuclide');
+    marqueeBar.style.display = 'none';
+    marqueeStop();
+    return;
+  }
+
+  const el = getElement(p);
+  const stability = estimateStability(p, n);
+  let symbolHtml, nameHtml, nuclide, desc, tags = [];
+
+  if (el) {
+    card.style.setProperty('--symbol-gradient', `linear-gradient(135deg,${el.color1},${el.color2})`);
+    card.style.setProperty('--card-gradient',   `linear-gradient(135deg,${el.color1},${el.color2})`);
+    const wikiUrl = `https://ja.wikipedia.org/wiki/${encodeURIComponent(el.name)}`;
+    symbolHtml = `<div class="element-symbol fade-in">${el.sym}</div>`;
+    nameHtml   = `<div class="element-name-row"><div class="element-name">${el.name}</div><a href="${wikiUrl}" target="_blank" rel="noopener" class="wiki-link" title="Wikipediaで調べる">🔍</a></div>`;
+    nuclide    = A > 0 ? `<sup>${A}</sup>${el.sym}` : el.sym;
+    desc       = el.desc;
+    const iso = {'H':{1:'プロチウム',2:'重水素(D)',3:'三重水素(T)'},'C':{12:'炭素-12（質量基準）',14:'放射性炭素'},'U':{235:'ウラン-235（核分裂）',238:'ウラン-238（天然最多）'}};
+    if (iso[el.sym] && iso[el.sym][A]) nuclide += `「${iso[el.sym][A]}」`;
+  } else {
+    card.style.setProperty('--symbol-gradient','linear-gradient(135deg,#ff4d6d,#ffd166)');
+    card.style.setProperty('--card-gradient','linear-gradient(135deg,#ff4d6d,#ffd166)');
+    symbolHtml = `<div class="element-symbol fade-in">?</div>`;
+    nameHtml   = `<div class="element-name">未確認元素</div>`;
+    nuclide    = `Z=${p}`;
+    desc       = `原子番号 ${p} の元素はまだ正式に命名・合成されていません。`;
+  }
+
+  if (stability==='stable')        tags.push(`<span class="tag tag-stable">✓ 安定</span>`);
+  else if (stability==='unstable') tags.push(`<span class="tag tag-unstable">☢ 放射性</span>`);
+  else if (stability==='unknown')  tags.push(`<span class="tag tag-unknown">? 不明</span>`);
+
+  if (charge>0)       tags.push(`<span class="tag tag-ion">+${charge}</span>`);
+  else if (charge<0)  tags.push(`<span class="tag tag-ion">${charge}</span>`);
+  if (el) tags.push(`<span class="tag tag-category">${el.cat}</span>`);
+
+  // イオン名（陽子数と電荷の組み合わせで検索）
+  const ionName = charge !== 0 ? getIonName(p, charge) : null;
+
+  let stabPct=0, sColor='#ff4d6d';
+  if (stability==='stable')        { stabPct=100; sColor='#a8ff78'; }
+  else if (stability==='unknown')  { stabPct=40;  sColor='#ffd166'; }
+  else if (stability==='unstable') { stabPct=15;  sColor='#ff4d6d'; }
+
+  const isCollected = collection.some(c => c.z===p && c.n_val===n);
+
+  // オーバーレイカード
+  card.innerHTML = `
+    ${symbolHtml}
+    ${nameHtml}
+    <div class="nuclide-name">${nuclide}<br>A=${A} Z=${p} N=${n}</div>
+    <div class="element-tags">${tags.join('')}</div>
+    ${ionName ? `<div class="ion-name-badge">${ionName}</div>` : ''}
+    <div class="stability-row"><span class="stability-label">安定性</span><div class="stability-bar"><div class="stability-fill" style="width:${stabPct}%;background:${sColor}"></div></div></div>
+    ${p>0 ? `<button class="collect-btn ${isCollected?'already':''}" onclick="collectNuclide()">${isCollected ? '✓ 済み' : '＋ コレクション'}</button>` : ''}
+  `;
+
+  // ボーアモデルを半透明に
+  bohrWrap.classList.add('has-nuclide');
+
+  // マーキー解説
+  const text = desc || '';
+  marqueeText1.textContent = text;
+  marqueeText2.textContent = text;
+  marqueeBar.style.display = 'block';
+  // テキスト幅確定後に開始
+  requestAnimationFrame(() => marqueeStart());
+}
+
+// ===== コレクション操作 =====
+function collectNuclide(auto = false) {
+  if (p===0) return;
+  if (collection.some(c=>c.z===p && c.n_val===n)) {
+    if (!auto) showToast('すでにコレクション済みです');
+    return;
+  }
+  const el = getElement(p);
+  const stability = estimateStability(p, n);
+  collection.push({ z:p, n_val:n, stability, sym:el?el.sym:'?', name:el?el.name:`Z=${p}`, A:p+n, color1:el?el.color1:'#ff4d6d', color2:el?el.color2:'#ffd166' });
+  saveCollection();
+  stopCountdownBar();
+  updateNuclideInfo();
+  updateBadge();
+  showToast(`${el?el.sym:'?'}-${p+n} をコレクションしました！`);
+  // 核種マップタブが開いていれば再描画＋スクロール
+  if (document.getElementById('tab-chart').classList.contains('active')) {
+    renderCollection(); renderChart();
+    requestAnimationFrame(scrollToLatestNuclide);
+  }
+}
+
+// カウントダウンバー
+let countdownRaf = null;
+let countdownStart = null;
+
+function startCountdownBar() {
+  const bar   = document.getElementById('autoCollectBar');
+  const barBg = document.getElementById('autoCollectBarBg');
+  if (!bar) return;
+  bar.style.display   = 'block';
+  barBg.style.display = 'block';
+  bar.style.width = '100%';
+  countdownStart = performance.now();
+
+  function tick(now) {
+    const elapsed = now - countdownStart;
+    const pct = Math.max(0, 100 - (elapsed / AUTO_COLLECT_DELAY) * 100);
+    bar.style.width = pct + '%';
+    if (pct > 0) countdownRaf = requestAnimationFrame(tick);
+    else { bar.style.display = 'none'; barBg.style.display = 'none'; }
+  }
+  countdownRaf = requestAnimationFrame(tick);
+}
+
+function stopCountdownBar() {
+  cancelAnimationFrame(countdownRaf);
+  const bar   = document.getElementById('autoCollectBar');
+  const barBg = document.getElementById('autoCollectBarBg');
+  if (bar)   { bar.style.display   = 'none'; bar.style.width = '100%'; }
+  if (barBg) { barBg.style.display = 'none'; }
+}
+
+function removeFromCollection(z, nv) {
+  const idx = collection.findIndex(c=>c.z===z && c.n_val===nv);
+  if (idx>=0) collection.splice(idx,1);
+  saveCollection();
+  renderCollection(); renderChart(); updateBadge(); updateNuclideInfo();
+}
+
+function clearCollection() {
+  if (!collection.length) return;
+  if (!confirm('コレクションをすべて削除しますか？')) return;
+  collection = [];
+  saveCollection();
+  renderCollection(); renderChart(); updateBadge(); updateNuclideInfo();
+}
+
+function updateBadge() {
+  const b = document.getElementById('collBadge');
+  b.style.display = collection.length ? 'inline' : 'none';
+  b.textContent = collection.length;
+}
+
+// ===== コレクションリスト =====
+function renderCollection() {
+  const list = document.getElementById('collectionList');
+  document.getElementById('statTotal').textContent    = collection.length;
+  document.getElementById('statStable').textContent   = collection.filter(c=>c.stability==='stable').length;
+  document.getElementById('statUnstable').textContent = collection.filter(c=>c.stability==='unstable').length;
+  document.getElementById('statUnknown').textContent  = collection.filter(c=>c.stability==='unknown').length;
+
+  if (!collection.length) {
+    list.innerHTML = `<div class="empty-chart"><div class="big">🔬</div>まだ核種をコレクションしていません<br><small style="font-size:11px;margin-top:8px;display:block">シミュレーターで核種を作り<br>「コレクションに追加」を押してください</small></div>`;
+    return;
+  }
+
+  const sorted = [...collection].sort((a,b)=>a.z-b.z||a.n_val-b.n_val);
+  list.innerHTML = sorted.map(c => `
+    <div class="coll-item" onclick="jumpTo(${c.z},${c.n_val})">
+      <button class="coll-del" onclick="event.stopPropagation();removeFromCollection(${c.z},${c.n_val})">✕</button>
+      <div class="coll-sym" style="--coll-grad:linear-gradient(135deg,${c.color1},${c.color2})">${c.sym}</div>
+      <div class="coll-label"><sup>${c.A}</sup>${c.sym}<br>Z=${c.z} N=${c.n_val}</div>
+      <div class="coll-stab" style="background:${stabColor(c.stability)}"></div>
+    </div>`).join('');
+}
+
+function jumpTo(z, nv) { p=z; n=nv; switchTab('simulator'); update(); }
+
+// ===== 周期表 =====
+// 周期表の配置データ [Z, row, col]
+const PT_LAYOUT = [
+  [1,1,1],[2,1,18],
+  [3,2,1],[4,2,2],[5,2,13],[6,2,14],[7,2,15],[8,2,16],[9,2,17],[10,2,18],
+  [11,3,1],[12,3,2],[13,3,13],[14,3,14],[15,3,15],[16,3,16],[17,3,17],[18,3,18],
+  [19,4,1],[20,4,2],[21,4,3],[22,4,4],[23,4,5],[24,4,6],[25,4,7],[26,4,8],[27,4,9],[28,4,10],[29,4,11],[30,4,12],[31,4,13],[32,4,14],[33,4,15],[34,4,16],[35,4,17],[36,4,18],
+  [37,5,1],[38,5,2],[39,5,3],[40,5,4],[41,5,5],[42,5,6],[43,5,7],[44,5,8],[45,5,9],[46,5,10],[47,5,11],[48,5,12],[49,5,13],[50,5,14],[51,5,15],[52,5,16],[53,5,17],[54,5,18],
+  [55,6,1],[56,6,2],[57,6,3],[72,6,4],[73,6,5],[74,6,6],[75,6,7],[76,6,8],[77,6,9],[78,6,10],[79,6,11],[80,6,12],[81,6,13],[82,6,14],[83,6,15],[84,6,16],[85,6,17],[86,6,18],
+  [87,7,1],[88,7,2],[89,7,3],[104,7,4],[105,7,5],[106,7,6],[107,7,7],[108,7,8],[109,7,9],[110,7,10],[111,7,11],[112,7,12],[113,7,13],[114,7,14],[115,7,15],[116,7,16],[117,7,17],[118,7,18],
+  // ランタノイド (row 9)
+  [58,9,4],[59,9,5],[60,9,6],[61,9,7],[62,9,8],[63,9,9],[64,9,10],[65,9,11],[66,9,12],[67,9,13],[68,9,14],[69,9,15],[70,9,16],[71,9,17],
+  // アクチノイド (row 10)
+  [90,10,4],[91,10,5],[92,10,6],[93,10,7],[94,10,8],[95,10,9],[96,10,10],[97,10,11],[98,10,12],[99,10,13],[100,10,14],[101,10,15],[102,10,16],[103,10,17],
+];
+
+// カテゴリ→色マップ
+const CAT_COLORS = {
+  '非金属':       { bg: '#0d2d1a', border: '#2d7a3a', glow: '#2d7a3a' },
+  'ハロゲン':     { bg: '#2d1a0d', border: '#8b4a0a', glow: '#c4681a' },
+  '希ガス':       { bg: '#0d1a2d', border: '#1a4a8b', glow: '#2a6acc' },
+  'アルカリ金属': { bg: '#2d0d0d', border: '#8b1a1a', glow: '#cc2a2a' },
+  'アルカリ土類': { bg: '#2d2000', border: '#8b6000', glow: '#cc9900' },
+  '半金属':       { bg: '#0d2d2d', border: '#0a7a7a', glow: '#1aacac' },
+  '金属':         { bg: '#1a1a2d', border: '#4a4a8b', glow: '#7070cc' },
+  '遷移金属':     { bg: '#0d1a2d', border: '#1a5a8b', glow: '#2a80cc' },
+  'ランタノイド': { bg: '#2d0d2d', border: '#7a1a7a', glow: '#aa2aaa' },
+  'アクチノイド': { bg: '#2d1a00', border: '#8b4a00', glow: '#cc6e00' },
+};
+
+let ptableRendered = false;
+
+function renderPtable() {
+  if (ptableRendered) return;
+  ptableRendered = true;
+
+  const wrap = document.getElementById('ptableWrap');
+  wrap.innerHTML = '';
+
+  // グリッドセルを生成
+  PT_LAYOUT.forEach(([z, row, col]) => {
+    const el = getElement(z);
+    if (!el) return;
+    const cat = CAT_COLORS[el.cat] || { bg:'#0d1a2d', border:'#2a4a6a', glow:'#3a6a9a' };
+    const div = document.createElement('div');
+    div.className = 'pt-cell';
+    div.style.gridRow = row;
+    div.style.gridColumn = col;
+    div.style.background = cat.bg;
+    div.style.borderColor = cat.border;
+    div.dataset.glow = cat.glow;
+    div.innerHTML = `
+      <span class="pt-z">${z}</span>
+      <span class="pt-sym" style="background:linear-gradient(135deg,${el.color1},${el.color2});-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">${el.sym}</span>
+      <span class="pt-name">${el.name}</span>
+    `;
+    div.addEventListener('mouseenter', () => {
+      div.style.boxShadow = `0 0 10px ${cat.glow}88, 0 0 20px ${cat.glow}44`;
+      div.style.borderColor = cat.glow;
+    });
+    div.addEventListener('mouseleave', () => {
+      div.style.boxShadow = '';
+      div.style.borderColor = cat.border;
+    });
+    div.addEventListener('click', () => {
+      p = z; n = z; e = z;
+      for (const key of STABLE_NUCLIDES) {
+        const [zs] = key.split('-').map(Number);
+        if (zs === z) { n = parseInt(key.split('-')[1]); break; }
+      }
+      switchTab('simulator');
+      update();
+    });
+    wrap.appendChild(div);
+  });
+
+  // ランタノイド・アクチノイドの区切りラベル
+  ['La〜Lu', 'Ac〜Lr'].forEach((label, i) => {
+    const div = document.createElement('div');
+    div.style.gridRow = i === 0 ? 6 : 7;
+    div.style.gridColumn = 3;
+    div.style.display = 'flex';
+    div.style.alignItems = 'center';
+    div.style.justifyContent = 'center';
+    div.style.fontSize = '7px';
+    div.style.color = 'var(--muted)';
+    div.style.fontFamily = 'Orbitron,monospace';
+    div.style.border = '1px dashed var(--border)';
+    div.style.borderRadius = '4px';
+    div.textContent = label;
+    wrap.appendChild(div);
+  });
+
+  // 凡例
+  const legend = document.getElementById('ptableLegend');
+  legend.innerHTML = Object.entries(CAT_COLORS).map(([cat, col]) => {
+    return `<div class="ptable-legend-item">
+      <div class="ptable-legend-dot" style="background:${col.bg};border:1.5px solid ${col.border}"></div>
+      ${cat}
+    </div>`;
+  }).join('');
+}
+
+// ===== 核種マップ Canvas =====
+const CELL=10, PAD=40, Z_MAX=83, N_MAX=130;
+
+function renderChart() {
+  const canvas = document.getElementById('nuclideChart');
+  const W = PAD + (N_MAX+1)*CELL + 20;
+  const H = PAD + (Z_MAX+1)*CELL + 20;
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#050a14'; ctx.fillRect(0,0,W,H);
+
+  // 全安定核種を薄く表示
+  for (const key of STABLE_NUCLIDES) {
+    const [zs, ns] = key.split('-').map(Number);
+    if (zs > Z_MAX || ns > N_MAX) continue;
+    const x = PAD + ns*CELL, y = H - PAD - (zs+1)*CELL;
+    ctx.fillStyle = 'rgba(168,255,120,0.22)';
+    ctx.fillRect(x+1, y+1, CELL-2, CELL-2);
+  }
+
+  // 放射性核種域（ドリップライン内）を極薄く
+  for (let z=1; z<=Z_MAX; z++) {
+    const nMin = Math.max(0, Math.round(z*0.4));
+    const nMax = Math.min(N_MAX, Math.round(z*1.8+10));
+    for (let nv=nMin; nv<=nMax; nv++) {
+      if (STABLE_NUCLIDES.has(z+'-'+nv)) continue;
+      const x = PAD + nv*CELL, y = H - PAD - (z+1)*CELL;
+      ctx.fillStyle = 'rgba(255,77,109,0.09)';
+      ctx.fillRect(x+1, y+1, CELL-2, CELL-2);
+    }
+  }
+
+  // 魔法数ライン
+  const magicN = [2,8,20,28,50,82,126];
+  const magicZ = [2,8,20,28,50,82];
+  ctx.strokeStyle = 'rgba(255,209,102,0.22)';
+  ctx.lineWidth = 0.8; ctx.setLineDash([2,4]);
+  for (const mn of magicN) {
+    if (mn > N_MAX) continue;
+    const x = PAD + mn*CELL + CELL/2;
+    ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x, H-PAD); ctx.stroke();
+  }
+  for (const mz of magicZ) {
+    if (mz > Z_MAX) continue;
+    const y = H - PAD - mz*CELL - CELL/2;
+    ctx.beginPath(); ctx.moveTo(PAD, y); ctx.lineTo(W, y); ctx.stroke();
+  }
+  ctx.setLineDash([]);
+
+  // 安定の谷ライン
+  ctx.strokeStyle = 'rgba(168,255,120,0.18)';
+  ctx.lineWidth = 1; ctx.setLineDash([3,5]);
+  ctx.beginPath();
+  for (let z=1; z<=Z_MAX; z++) {
+    const nIdeal = z <= 20 ? z : z*1.25 + z*0.002*(z-20);
+    const x = PAD + nIdeal*CELL + CELL/2;
+    const y = H - PAD - z*CELL - CELL/2;
+    z===1 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
+  }
+  ctx.stroke(); ctx.setLineDash([]);
+
+  // コレクション済みセル
+  canvas._cells = [];
+  for (const c of collection) {
+    if (c.z>Z_MAX || c.n_val>N_MAX) continue;
+    const x = PAD + c.n_val*CELL, y = H - PAD - (c.z+1)*CELL;
+    const grd = ctx.createLinearGradient(x,y,x+CELL,y+CELL);
+    grd.addColorStop(0, c.color1+'ee'); grd.addColorStop(1, c.color2+'ee');
+    ctx.fillStyle = grd; ctx.fillRect(x+1, y+1, CELL-2, CELL-2);
+    ctx.strokeStyle = 'rgba(255,255,255,0.6)'; ctx.lineWidth = 0.8;
+    ctx.strokeRect(x+1, y+1, CELL-2, CELL-2);
+    ctx.fillStyle = stabColor(c.stability);
+    ctx.beginPath(); ctx.arc(x+CELL-2, y+2, 1.5, 0, Math.PI*2); ctx.fill();
+    canvas._cells.push({...c, rx:x, ry:y});
+  }
+
+  // 軸ラベル
+  ctx.fillStyle = '#5a8aaa'; ctx.font = '9px Orbitron,monospace';
+  ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+  for (let z=0; z<=Z_MAX; z+=10) ctx.fillText(z, PAD-4, H - PAD - z*CELL - CELL/2);
+  ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+  for (let nv=0; nv<=N_MAX; nv+=10) ctx.fillText(nv, PAD + nv*CELL + CELL/2, H-PAD+3);
+  ctx.fillStyle = '#4a7a9b'; ctx.font = '10px Orbitron,monospace';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+  ctx.fillText('N（中性子数）', PAD + N_MAX*CELL/2, H-2);
+  ctx.save(); ctx.translate(12, H/2); ctx.rotate(-Math.PI/2);
+  ctx.textBaseline = 'top'; ctx.fillText('Z（原子番号）', 0, 0); ctx.restore();
+
+  // 魔法数ラベル
+  ctx.fillStyle = 'rgba(255,209,102,0.45)'; ctx.font = '8px Orbitron,monospace';
+  ctx.textAlign = 'left'; ctx.textBaseline = 'bottom';
+  for (const mn of magicN) {
+    if (mn > N_MAX) continue;
+    ctx.fillText('N='+mn, PAD + mn*CELL + 2, H-PAD-2);
+  }
+
+  if (!canvas._evSet) {
+    canvas._evSet = true;
+    const tip = document.getElementById('cellTooltip');
+    canvas.addEventListener('mousemove', ev => {
+      const r = canvas.getBoundingClientRect();
+      const mx = ev.clientX - r.left, my = ev.clientY - r.top;
+      const found = (canvas._cells||[]).find(c => mx>=c.rx && mx<c.rx+CELL && my>=c.ry && my<c.ry+CELL);
+      if (found) {
+        tip.innerHTML = '<b>'+found.sym+'-'+found.A+'</b><br>Z='+found.z+' / N='+found.n_val+'<br>'+found.name+'・'+(found.stability==='stable'?'✓ 安定':found.stability==='unstable'?'☢ 放射性':'? 不明');
+        tip.style.left = (ev.clientX+14)+'px'; tip.style.top = (ev.clientY-40)+'px';
+        tip.classList.add('show');
+      } else { tip.classList.remove('show'); }
+    });
+    canvas.addEventListener('mouseleave', () => document.getElementById('cellTooltip').classList.remove('show'));
+    canvas.addEventListener('click', ev => {
+      const r = canvas.getBoundingClientRect();
+      const mx = ev.clientX - r.left, my = ev.clientY - r.top;
+      const found = (canvas._cells||[]).find(c => mx>=c.rx && mx<c.rx+CELL && my>=c.ry && my<c.ry+CELL);
+      if (found) jumpTo(found.z, found.n_val);
+    });
+  }
+}
+
+function scrollToLatestNuclide() {
+  const scroll = document.getElementById('chartScroll');
+  if (!scroll) return;
+  const canvas = document.getElementById('nuclideChart');
+  const H = canvas.height;
+
+  // 対象核種を決定（コレクションあり→最新、なし→Z=1 N=0 の位置）
+  const target = collection.length > 0
+    ? collection[collection.length - 1]
+    : { z: 1, n_val: 0 };
+
+  const z  = Math.min(target.z,     Z_MAX);
+  const nv = Math.min(target.n_val, N_MAX);
+
+  // Canvas上のセル中心座標
+  const cx = PAD + nv * CELL + CELL / 2;
+  const cy = H - PAD - z * CELL - CELL / 2;
+
+  // スクロールコンテナの中心にセルが来るよう設定
+  scroll.scrollTo({
+    left: Math.max(0, cx - scroll.clientWidth  / 2),
+    top:  Math.max(0, cy - scroll.clientHeight / 2),
+    behavior: collection.length > 0 ? 'smooth' : 'instant',
+  });
+}
+
+function scrollToLatestElement() {
+  if (p === 0) return;
+  const scroll = document.querySelector('.ptable-scroll');
+  if (!scroll) return;
+
+  // PT_LAYOUTから現在のZ(p)のセル位置を探す
+  const entry = PT_LAYOUT.find(([z]) => z === p);
+  if (!entry) return;
+  const [, row, col] = entry;
+
+  // セルサイズ（38px）＋gap（3px）
+  const cellW = 41, cellH = 49;
+  const cellX = (col - 1) * cellW + cellW / 2;
+  const cellY = (row - 1) * cellH + cellH / 2;
+
+  scroll.scrollTo({
+    left: Math.max(0, cellX - scroll.clientWidth / 2),
+    top:  Math.max(0, cellY - scroll.clientHeight / 2),
+    behavior: 'smooth',
+  });
+}
+function drawNucleus() {
+  const canvas = document.getElementById('nucleusCanvas');
+  const ctx = canvas.getContext('2d');
+  const total = p + n;
+  const nucEl = document.getElementById('nucleus');
+
+  if (total === 0) {
+    canvas.width=80; canvas.height=80;
+    nucEl.style.width='80px'; nucEl.style.height='80px';
+    ctx.clearRect(0,0,80,80);
+    ctx.beginPath(); ctx.arc(40,40,30,0,Math.PI*2);
+    ctx.strokeStyle='rgba(255,255,255,0.1)'; ctx.lineWidth=1; ctx.stroke();
+    document.getElementById('massNum').textContent='0';
+    document.getElementById('pnRatio').textContent='p:n = 0:0';
+    return;
+  }
+
+  // 粒子半径・キャンバスサイズを決定
+  const PR = total <= 4 ? 5 : total <= 10 ? 4 : total <= 20 ? 3 : total <= 50 ? 2.5 : 2;
+  const DISPLAY = Math.min(total, 60); // 表示する粒子数の上限
+
+  // 六方最密充填で座標生成（内側から螺旋状に）
+  function hexPositions(count) {
+    const positions = [{x:0, y:0}];
+    if (count === 1) return positions;
+    // 六方格子：ring=1,2,3...と外側に広げる
+    const dirs = [
+      [1,0],[0.5, Math.sqrt(3)/2],[-0.5, Math.sqrt(3)/2],
+      [-1,0],[-0.5,-Math.sqrt(3)/2],[0.5,-Math.sqrt(3)/2]
+    ];
+    let ring = 1;
+    while (positions.length < count) {
+      // 各リングの開始点
+      let x = ring * dirs[4][0], y = ring * dirs[4][1];
+      for (let side = 0; side < 6; side++) {
+        for (let step = 0; step < ring; step++) {
+          if (positions.length >= count) break;
+          positions.push({x, y});
+          x += dirs[side][0];
+          y += dirs[side][1];
+        }
+        if (positions.length >= count) break;
+      }
+      ring++;
+    }
+    return positions;
+  }
+
+  const rawPos = hexPositions(DISPLAY);
+
+  // バウンディングボックスからキャンバスサイズを決定
+  const spacing = PR * 2 * 0.88; // 粒子間隔（少し重なる）
+  let maxR = 0;
+  rawPos.forEach(pos => {
+    const d = Math.sqrt(pos.x*pos.x + pos.y*pos.y);
+    if (d > maxR) maxR = d;
+  });
+  const clusterR = maxR * spacing + PR + 4;
+  const sz = Math.ceil(clusterR * 2) + 8;
+  const cx = sz / 2, cy = sz / 2;
+
+  canvas.width = sz; canvas.height = sz;
+  nucEl.style.width = sz+'px'; nucEl.style.height = sz+'px';
+  ctx.clearRect(0, 0, sz, sz);
+
+  // 外側グロー
+  const glowR = clusterR * 0.9;
+  const grd = ctx.createRadialGradient(cx, cy, glowR*0.2, cx, cy, glowR*1.3);
+  grd.addColorStop(0, `rgba(${p>0?'255,77,109':'220,220,220'},0.25)`);
+  grd.addColorStop(1, 'transparent');
+  ctx.fillStyle = grd;
+  ctx.beginPath(); ctx.arc(cx, cy, glowR*1.3, 0, Math.PI*2); ctx.fill();
+
+  // 粒子を描画（陽子を先に並べてから中性子）
+  // 配列をシャッフルして混ぜた配置にする
+  const types = Array(p).fill('p').concat(Array(n).fill('n'));
+  // 表示分をランダムに混ぜる（シードなし・固定シード風に交互配置）
+  const displayTypes = [];
+  const pShow = Math.round(DISPLAY * p / total);
+  const nShow = DISPLAY - pShow;
+  for (let i = 0; i < DISPLAY; i++) {
+    // 交互に配置してなるべく混ざって見えるように
+    if (i % 2 === 0 && displayTypes.filter(t=>t==='p').length < pShow) displayTypes.push('p');
+    else if (displayTypes.filter(t=>t==='n').length < nShow) displayTypes.push('n');
+    else displayTypes.push('p');
+  }
+
+  // 奥から手前の順に描画（y座標昇順）
+  const sorted = rawPos.map((pos, i) => ({pos, type: displayTypes[i]}))
+                       .sort((a, b) => a.pos.y - b.pos.y);
+
+  sorted.forEach(({pos, type}) => {
+    const bx = cx + pos.x * spacing;
+    const by = cy + pos.y * spacing;
+    const isP = type === 'p';
+
+    // 影（奥行き感）
+    ctx.beginPath(); ctx.arc(bx + PR*0.15, by + PR*0.2, PR, 0, Math.PI*2);
+    ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fill();
+
+    // 球グラデーション
+    const ng = ctx.createRadialGradient(bx - PR*0.3, by - PR*0.3, PR*0.1, bx, by, PR);
+    if (isP) {
+      ng.addColorStop(0, '#ffb3c1');
+      ng.addColorStop(0.4, '#ff4d6d');
+      ng.addColorStop(1, '#7b0020');
+    } else {
+      ng.addColorStop(0, '#ffffff');
+      ng.addColorStop(0.4, '#d8d8d8');
+      ng.addColorStop(1, '#888888');
+    }
+    ctx.beginPath(); ctx.arc(bx, by, PR, 0, Math.PI*2);
+    ctx.fillStyle = ng; ctx.fill();
+  });
+
+  // 中心ハイライト
+  const cg = ctx.createRadialGradient(cx - clusterR*0.15, cy - clusterR*0.15, 0, cx, cy, clusterR*0.5);
+  cg.addColorStop(0, 'rgba(255,255,255,0.18)');
+  cg.addColorStop(1, 'transparent');
+  ctx.fillStyle = cg;
+  ctx.beginPath(); ctx.arc(cx, cy, clusterR*0.5, 0, Math.PI*2); ctx.fill();
+
+  document.getElementById('massNum').textContent = p+n;
+  document.getElementById('pnRatio').textContent = `p:n = ${p}:${n}`;
+}
+
+// 希ガスの電子数
+const NOBLE_GAS_E = new Set([2, 10, 18, 36, 54, 86]);
+const NOBLE_GAS_NAMES = { 2:'He配置', 10:'Ne配置', 18:'Ar配置', 36:'Kr配置', 54:'Xe配置', 86:'Rn配置' };
+
+// ===== 基底状態電子配置（殻ごとの電子数）Z=1〜118 =====
+// 形式: [K, L, M, N, O, P, Q] 各殻の電子数
+// 出典: IAEA / 化学便覧
+const GROUND_CONFIG = {
+  1:  [1],
+  2:  [2],
+  3:  [2,1],
+  4:  [2,2],
+  5:  [2,3],
+  6:  [2,4],
+  7:  [2,5],
+  8:  [2,6],
+  9:  [2,7],
+  10: [2,8],
+  11: [2,8,1],
+  12: [2,8,2],
+  13: [2,8,3],
+  14: [2,8,4],
+  15: [2,8,5],
+  16: [2,8,6],
+  17: [2,8,7],
+  18: [2,8,8],
+  19: [2,8,8,1],
+  20: [2,8,8,2],
+  21: [2,8,9,2],
+  22: [2,8,10,2],
+  23: [2,8,11,2],
+  24: [2,8,13,1],   // 例外
+  25: [2,8,13,2],
+  26: [2,8,14,2],
+  27: [2,8,15,2],
+  28: [2,8,16,2],
+  29: [2,8,18,1],   // 例外
+  30: [2,8,18,2],
+  31: [2,8,18,3],
+  32: [2,8,18,4],
+  33: [2,8,18,5],
+  34: [2,8,18,6],
+  35: [2,8,18,7],
+  36: [2,8,18,8],
+  37: [2,8,18,8,1],
+  38: [2,8,18,8,2],
+  39: [2,8,18,9,2],
+  40: [2,8,18,10,2],
+  41: [2,8,18,12,1],  // 例外
+  42: [2,8,18,13,1],  // 例外
+  43: [2,8,18,13,2],
+  44: [2,8,18,15,1],  // 例外
+  45: [2,8,18,16,1],  // 例外
+  46: [2,8,18,18],    // 例外
+  47: [2,8,18,18,1],  // 例外
+  48: [2,8,18,18,2],
+  49: [2,8,18,18,3],
+  50: [2,8,18,18,4],
+  51: [2,8,18,18,5],
+  52: [2,8,18,18,6],
+  53: [2,8,18,18,7],
+  54: [2,8,18,18,8],
+  55: [2,8,18,18,8,1],
+  56: [2,8,18,18,8,2],
+  57: [2,8,18,18,9,2],
+  58: [2,8,18,19,9,2],  // 例外
+  59: [2,8,18,21,8,2],
+  60: [2,8,18,22,8,2],
+  61: [2,8,18,23,8,2],
+  62: [2,8,18,24,8,2],
+  63: [2,8,18,25,8,2],
+  64: [2,8,18,25,9,2],  // 例外
+  65: [2,8,18,27,8,2],
+  66: [2,8,18,28,8,2],
+  67: [2,8,18,29,8,2],
+  68: [2,8,18,30,8,2],
+  69: [2,8,18,31,8,2],
+  70: [2,8,18,32,8,2],
+  71: [2,8,18,32,9,2],
+  72: [2,8,18,32,10,2],
+  73: [2,8,18,32,11,2],
+  74: [2,8,18,32,12,2],
+  75: [2,8,18,32,13,2],
+  76: [2,8,18,32,14,2],
+  77: [2,8,18,32,15,2],
+  78: [2,8,18,32,17,1],  // 例外
+  79: [2,8,18,32,18,1],  // 例外
+  80: [2,8,18,32,18,2],
+  81: [2,8,18,32,18,3],
+  82: [2,8,18,32,18,4],
+  83: [2,8,18,32,18,5],
+  84: [2,8,18,32,18,6],
+  85: [2,8,18,32,18,7],
+  86: [2,8,18,32,18,8],
+  87: [2,8,18,32,18,8,1],
+  88: [2,8,18,32,18,8,2],
+  89: [2,8,18,32,18,9,2],
+  90: [2,8,18,32,18,10,2],
+  91: [2,8,18,32,20,9,2],  // 例外
+  92: [2,8,18,32,21,9,2],  // 例外
+  93: [2,8,18,32,22,9,2],  // 例外
+  94: [2,8,18,32,24,8,2],  // 例外
+  95: [2,8,18,32,25,8,2],
+  96: [2,8,18,32,25,9,2],  // 例外
+  97: [2,8,18,32,27,8,2],
+  98: [2,8,18,32,28,8,2],
+  99: [2,8,18,32,29,8,2],
+  100:[2,8,18,32,30,8,2],
+  101:[2,8,18,32,31,8,2],
+  102:[2,8,18,32,32,8,2],
+  103:[2,8,18,32,32,8,3],  // 例外
+  104:[2,8,18,32,32,10,2],
+  105:[2,8,18,32,32,11,2],
+  106:[2,8,18,32,32,12,2],
+  107:[2,8,18,32,32,13,2],
+  108:[2,8,18,32,32,14,2],
+  109:[2,8,18,32,32,15,2],
+  110:[2,8,18,32,32,17,1],
+  111:[2,8,18,32,32,18,1],
+  112:[2,8,18,32,32,18,2],
+  113:[2,8,18,32,32,18,3],
+  114:[2,8,18,32,32,18,4],
+  115:[2,8,18,32,32,18,5],
+  116:[2,8,18,32,32,18,6],
+  117:[2,8,18,32,32,18,7],
+  118:[2,8,18,32,32,18,8],
+};
+
+// 指定された電子数eに対し、基底状態の殻配置を返す
+// 中性原子（e=p）はGROUND_CONFIGを使用
+// イオン（e≠p）は電子数に近い中性原子の配置を参考に調整
+function getShellConfig(electronCount) {
+  // まず中性原子のデータから探す
+  if (GROUND_CONFIG[electronCount]) {
+    return [...GROUND_CONFIG[electronCount]];
+  }
+  // イオン：電子数と同じ中性原子配置を基準に
+  // 例：Na⁺(e=10)→Neの配置、Cl⁻(e=18)→Arの配置
+  if (GROUND_CONFIG[electronCount]) return [...GROUND_CONFIG[electronCount]];
+
+  // 中性原子データにない場合（通常は中性原子データが全Z分あるので到達しない）
+  // フォールバック：単純な殻順
+  const caps = [2,8,18,32,32,18,8];
+  const result = [];
+  let rem = electronCount;
+  for (const cap of caps) {
+    if (rem <= 0) break;
+    const n = Math.min(rem, cap);
+    result.push(n);
+    rem -= n;
+  }
+  return result;
+}
+
+function drawElectrons() {
+  const cont = document.getElementById('nucleusContainer');
+  cont.querySelectorAll('.electron-dot, .noble-gas-badge').forEach(d => d.remove());
+  if (!e) return;
+
+  const isNoble = e > 0 && NOBLE_GAS_E.has(e);
+  const cx = 80, cy = 80;
+
+  // 基底状態の殻配置を取得
+  const shellConfig = getShellConfig(e);
+
+  // ===== 電子式(ルイス・ドット)的な配置順 =====
+  // 1個→上、2個→上下、3個→上下左、4個→上下左右(十字)、
+  // 5個→十字+右上、6個→十字+右上左上、7個→+左下、8個→+右下(8方位完成)
+  // 9個以上は均等割(リング上に等間隔、12時から時計回り)
+  // 角度(rad)。x=cos(angle), y=sin(angle), 0=右, -π/2=上(画面座標)
+  const DIRS_8 = [
+    -Math.PI / 2,            // 上
+     Math.PI / 2,            // 下
+     Math.PI,                // 左
+     0,                      // 右
+    -Math.PI / 4,            // 右上
+    -3 * Math.PI / 4,        // 左上
+     3 * Math.PI / 4,        // 左下
+     Math.PI / 4,            // 右下
+  ];
+
+  function anglesFor(count) {
+    if (count <= 8) {
+      return DIRS_8.slice(0, count);
+    }
+    // 9個以上：均等割(12時から時計回り)
+    const result = [];
+    for (let i = 0; i < count; i++) {
+      result.push((i / count) * Math.PI * 2 - Math.PI / 2);
+    }
+    return result;
+  }
+
+  shellConfig.forEach((count, si) => {
+    if (count === 0 || si >= SHELL_RADII.length) return;
+    const r = SHELL_RADII[si];
+    const angles = anglesFor(count);
+    for (let i = 0; i < count; i++) {
+      const angle = angles[i];
+      const dot = document.createElement('div');
+      dot.className = 'electron-dot' + (isNoble ? ' noble' : '');
+      dot.style.left = (cx + Math.cos(angle) * r) + 'px';
+      dot.style.top  = (cy + Math.sin(angle) * r) + 'px';
+      cont.appendChild(dot);
+    }
+  });
+
+  // 希ガス配置バッジ
+  if (isNoble && p !== e) {
+    const badge = document.createElement('div');
+    badge.className = 'noble-gas-badge';
+    badge.textContent = '✦ ' + (NOBLE_GAS_NAMES[e] || '希ガス配置');
+    cont.appendChild(badge);
+  }
+}
+
+// 殻の設定（K=1〜P=6）
+const SHELL_INFO = [
+  { name:'K', cap:2  },
+  { name:'L', cap:8  },
+  { name:'M', cap:18 },
+  { name:'N', cap:32 },
+  { name:'O', cap:32 },
+  { name:'P', cap:18 },
+];
+// 各殻の電子軌道半径（drawElectrons用）
+const SHELL_RADII = [23, 40, 58, 75, 93, 111];
+// 殻ラベルの right offset（軌道の半径に対応）
+const SHELL_LABEL_OFFSET = [24, 41, 59, 76, 94, 112];
+
+function updateOrbits(){
+  const container = document.getElementById('nucleusContainer');
+  const shellConfig = getShellConfig(e);
+  const activeShells = shellConfig.filter(n => n > 0).length;
+
+  for (let si = 5; si <= 6; si++) {
+    const id = 'orbit' + si;
+    let orbitEl = document.getElementById(id);
+    const needed = activeShells >= si;
+    if (needed && !orbitEl) {
+      orbitEl = document.createElement('div');
+      orbitEl.id = id;
+      orbitEl.className = `orbit orbit-${si}`;
+      const labelOffset = SHELL_LABEL_OFFSET[si - 1];
+      orbitEl.innerHTML = `<span class="orbit-label" style="left:calc(50% + ${labelOffset}px)">${SHELL_INFO[si-1].name}</span>`;
+      container.insertBefore(orbitEl, container.firstChild);
+    } else if (!needed && orbitEl) {
+      orbitEl.remove();
+    }
+  }
+
+  for (let i = 1; i <= 6; i++) {
+    const el = document.getElementById('orbit' + i);
+    if (!el) continue;
+    el.style.borderColor = i <= activeShells
+      ? 'rgba(168,255,120,0.3)'
+      : 'rgba(168,255,120,0.1)';
+  }
+}
+
+function change(type,delta){
+  if(type==='p') p=Math.max(0,Math.min(118,p+delta));
+  if(type==='n') n=Math.max(0,Math.min(177,n+delta));
+  if(type==='e') e=Math.max(0,Math.min(118,e+delta));
+  update();
+}
+
+function updateChargeChart() {
+  const MAX = Math.max(p, e, 1);
+  const pPct = (p / MAX * 100).toFixed(1);
+  const ePct = (e / MAX * 100).toFixed(1);
+  const charge = p - e;
+
+  document.getElementById('cgP').textContent = p;
+  document.getElementById('cgE').textContent = e;
+  document.getElementById('cgBarP').style.width = pPct + '%';
+  document.getElementById('cgBarE').style.width = ePct + '%';
+
+  const diffLine  = document.getElementById('cgDiffLine');
+  const diffLabel = document.getElementById('cgDiffLabel');
+
+  if (p === 0 && e === 0) {
+    diffLine.style.background = 'transparent';
+    diffLine.style.marginLeft = '0';
+    diffLine.style.width = '0';
+    diffLabel.textContent = '';
+    return;
+  }
+
+  if (charge === 0) {
+    diffLine.style.background = 'transparent';
+    diffLine.style.left  = '0';
+    diffLine.style.width = '0';
+    diffLabel.textContent  = '中性';
+    diffLabel.style.color  = 'var(--electron)';
+    diffLabel.style.left   = '0';
+    diffLabel.style.width  = '100%';
+    diffLabel.style.fontSize = '14px';
+  } else {
+    const longer   = Math.max(p, e);
+    const shorter  = Math.min(p, e);
+    const isPositive = charge > 0;
+    const shortPct = longer > 0 ? (shorter / longer * 100).toFixed(1) : 0;
+    const diffPct  = longer > 0 ? ((longer - shorter) / longer * 100).toFixed(1) : 100;
+
+    diffLine.style.left   = shortPct + '%';
+    diffLine.style.width  = diffPct + '%';
+    diffLine.style.background = isPositive
+      ? 'linear-gradient(90deg,rgba(255,77,109,0.8),rgba(255,77,109,0.3))'
+      : 'linear-gradient(90deg,rgba(255,209,102,0.8),rgba(255,209,102,0.3))';
+
+    // ラベルをライン範囲の上に中央揃え
+    diffLabel.style.left   = shortPct + '%';
+    diffLabel.style.width  = diffPct + '%';
+    diffLabel.style.fontSize = '20px';
+
+    let chargeText;
+    if      (charge ===  1) chargeText = '+';
+    else if (charge === -1) chargeText = '−';
+    else if (charge >   1)  chargeText = charge + '+';
+    else                    chargeText = Math.abs(charge) + '−';
+
+    diffLabel.textContent = chargeText;
+    diffLabel.style.color = isPositive ? 'var(--proton)' : 'var(--electron)';
+  }
+}
+
+function resetAll(){ p=0;n=0;e=0;update(); }
+
+function showToast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),2200);
+}
+
+update();
+
+// ===== localStorage 保存・読み込み =====
+const STORAGE_KEY = 'atomSimCollection';
+
+function saveCollection() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(collection));
+  } catch(e) {
+    console.warn('保存失敗:', e);
+  }
+}
+
+function loadCollection() {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      collection = JSON.parse(saved);
+      updateBadge();
+      showToast(`${collection.length}件のコレクションを読み込みました`);
+    }
+  } catch(e) {
+    console.warn('読み込み失敗:', e);
+    collection = [];
+  }
+}
+
+// 起動時に読み込み
+loadCollection();
+(function() {
+  const TABS = ['simulator', 'chart', 'ptable'];
+  let touchStartX = 0, touchStartY = 0;
+
+  function currentTab() {
+    return TABS.find(t => document.getElementById('tab-' + t).classList.contains('active')) || TABS[0];
+  }
+
+  document.addEventListener('touchstart', e => {
+    touchStartX = e.touches[0].clientX;
+    touchStartY = e.touches[0].clientY;
+  }, { passive: true });
+
+  document.addEventListener('touchend', e => {
+    const dx = e.changedTouches[0].clientX - touchStartX;
+    const dy = e.changedTouches[0].clientY - touchStartY;
+    // 水平方向が優位かつ50px以上のスワイプ
+    if (Math.abs(dx) < 50 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+
+    const cur = currentTab();
+    const idx = TABS.indexOf(cur);
+    if (dx < 0 && idx < TABS.length - 1) {
+      switchTab(TABS[idx + 1]); // 左スワイプ → 核種マップ
+    } else if (dx > 0 && idx > 0) {
+      switchTab(TABS[idx - 1]); // 右スワイプ → シミュレーター
+    }
+  }, { passive: true });
+})();
+</script>
+</body>
+</html>
