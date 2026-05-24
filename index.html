@@ -31,6 +31,9 @@
     color: var(--text);
     min-height: 100vh;
     overflow-x: hidden;
+    /* ダブルタップによる拡大を抑制（ピンチズームは可能） */
+    touch-action: manipulation;
+    -webkit-touch-callout: none;
   }
 
   body::before {
@@ -2745,34 +2748,7 @@ function loadCollection() {
 
 // 起動時に読み込み
 loadCollection();
-(function() {
-  const TABS = ['simulator', 'chart', 'ptable'];
-  let touchStartX = 0, touchStartY = 0;
-
-  function currentTab() {
-    return TABS.find(t => document.getElementById('tab-' + t).classList.contains('active')) || TABS[0];
-  }
-
-  document.addEventListener('touchstart', e => {
-    touchStartX = e.touches[0].clientX;
-    touchStartY = e.touches[0].clientY;
-  }, { passive: true });
-
-  document.addEventListener('touchend', e => {
-    const dx = e.changedTouches[0].clientX - touchStartX;
-    const dy = e.changedTouches[0].clientY - touchStartY;
-    // 水平方向が優位かつ50px以上のスワイプ
-    if (Math.abs(dx) < 50 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
-
-    const cur = currentTab();
-    const idx = TABS.indexOf(cur);
-    if (dx < 0 && idx < TABS.length - 1) {
-      switchTab(TABS[idx + 1]); // 左スワイプ → 核種マップ
-    } else if (dx > 0 && idx > 0) {
-      switchTab(TABS[idx - 1]); // 右スワイプ → シミュレーター
-    }
-  }, { passive: true });
-})();
+// 横スワイプによるタブ切替は無効化（上部ボタンのみで操作）
 </script>
 </body>
 </html>
